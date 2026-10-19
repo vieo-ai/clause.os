@@ -14,6 +14,10 @@ export XDG_DATA_HOME="${SCRIPT_DIR}/.local/share"
 export XDG_STATE_HOME="${SCRIPT_DIR}/.local/state"
 export XDG_CACHE_HOME="${SCRIPT_DIR}/.cache"
 
+# Windows Compatibility Environment Variables
+export APPDATA="${SCRIPT_DIR}/.local/appdata"
+export LOCALAPPDATA="${SCRIPT_DIR}/.local/share"
+
 # Application Profile Targets
 export GIT_CONFIG_GLOBAL="${SCRIPT_DIR}/.config/git/config"
 export NU_CONFIG_DIR="${SCRIPT_DIR}/.config/nushell"
