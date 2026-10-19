@@ -1,1 +1,1 @@
-M:/clause.os/.github/README.md
+.github/README.md
