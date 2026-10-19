@@ -1,0 +1,15 @@
+# Handle line endings automatically for text files
+# and leave binary files alone
+* text=auto
+
+# Preserve POSIX executable scripts
+*.sh text eol=lf
+clause.sh text eol=lf
+
+# Force standard LF on config files
+*.toml text eol=lf
+*.json text eol=lf
+*.nu text eol=lf
+
+# PowerShell scripts
+*.ps1 text eol=crlf
