@@ -1,0 +1,66 @@
+name: ClauseOS Toolchain CI
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'scripts/**'
+      - '.config/**'
+      - '.clause.toml'
+      - '.mise.toml'
+      - 'clause.ps1'
+      - 'clause.sh'
+      - 'clause.bat'
+      - 'justfile'
+      - '.github/workflows/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'scripts/**'
+      - '.config/**'
+      - '.clause.toml'
+      - '.mise.toml'
+      - 'clause.ps1'
+      - 'clause.sh'
+      - 'clause.bat'
+      - 'justfile'
+      - '.github/workflows/**'
+
+jobs:
+  test-workbench:
+    name: Test ClauseOS Bootloader (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            runner: [self-hosted, linux]
+          - os: windows-latest
+            runner: [self-hosted, windows]
+
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Configure Git Settings
+        run: |
+          git config core.fileMode false
+          git config core.symlinks true
+
+      # --- POSIX Test (Linux / macOS) ---
+      - name: Test ClauseOS Stage 0 Boot (POSIX)
+        if: runner.os != 'Windows'
+        run: |
+          chmod +x clause.sh
+          # Pass non-interactive command execution to Nushell via bootloader
+          ./clause.sh -c "print '[CI] ClauseOS POSIX Stage 0 Boot Verification Successful'"
+
+      # --- Windows Test ---
+      - name: Test ClauseOS Stage 0 Boot (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          .\clause.ps1 -c "print '[CI] ClauseOS Windows Stage 0 Boot Verification Successful'"
