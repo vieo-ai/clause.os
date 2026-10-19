@@ -1,0 +1,12 @@
+# Ignore runtime binaries
+*.exe
+.local/
+.cache/
+
+# Ignore userhome redirects to clause root
+AppData/
+Microsoft/
+*.tmp
+
+# Ignore NuShell runtime files
+.config/nushell/history.txt
