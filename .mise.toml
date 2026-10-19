@@ -1,0 +1,26 @@
+[env]
+# Path Shims Anchor
+"_.path"      = ["{{config_root}}/.local/bin"]
+MISE_SHIM_DIR = "{{config_root}}/.local/bin"
+
+# Root System Profile Anchors
+CLAUSE_PROJECT_ROOT = "{{config_root}}"
+USERPROFILE         = "{{config_root}}"
+HOME                = "{{config_root}}"
+
+# XDG Base Directory Specification
+XDG_CONFIG_HOME = "{{config_root}}/.config"
+XDG_DATA_HOME   = "{{config_root}}/.local/share"
+XDG_STATE_HOME  = "{{config_root}}/.local/state"
+XDG_CACHE_HOME  = "{{config_root}}/.cache"
+
+# Application Profile Targets
+GIT_CONFIG_GLOBAL = "{{config_root}}/.config/git/config"
+NU_CONFIG_DIR     = "{{config_root}}/.config/nushell"
+GH_CONFIG_DIR     = "{{config_root}}/.config/gh"
+
+# Isolated Toolchain & State Directories
+MISE_DATA_DIR   = "{{config_root}}/.cache/toolchain/mise"
+MISE_CONFIG_DIR = "{{config_root}}/.cache/toolchain/mise-config"
+MISE_STATE_DIR  = "{{config_root}}/.cache/toolchain/mise-state"
+MISE_CACHE_DIR  = "{{config_root}}/.cache/mise-cache"
