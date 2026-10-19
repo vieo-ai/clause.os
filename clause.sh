@@ -221,8 +221,30 @@ fi
 rm -rf "$TMP_DIR"
 
 # ==============================================================================
-# STAGE 2: PID 1 NUSHELL HANDOFF
+# STAGE 2: NUSHELL HANDOFF (CLI, CI/CD NON-INTERACTIVE, & TTY ROUTING)
 # ==============================================================================
-echo "[ClauseOS] Kernel ready. Executing Nushell init..."
+NU_EXE="$LOCAL_BIN/nu"
+ENV_NU="$NU_CONFIG_DIR/env.nu"
+CONFIG_NU="$NU_CONFIG_DIR/config.nu"
 
-exec "$LOCAL_BIN/nu" --config "$NU_CONFIG_DIR/config.nu" --env-config "$NU_CONFIG_DIR/env.nu"
+if [ -f "$NU_EXE" ] && [ -x "$NU_EXE" ]; then
+    if [ -f "$ENV_NU" ]; then
+        if [ "$#" -gt 0 ]; then
+            exec "$NU_EXE" --env-config "$ENV_NU" -c "clause $*"
+        elif [ ! -t 0 ] || [ "${CI:-false}" = "true" ]; then
+            exec "$NU_EXE" --env-config "$ENV_NU" -c "clause boot:check"
+        else
+            if [ -f "$CONFIG_NU" ]; then
+                exec "$NU_EXE" --env-config "$ENV_NU" --config "$CONFIG_NU" -e "clause banner"
+            else
+                exec "$NU_EXE" --env-config "$ENV_NU" -e "clause banner"
+            fi
+        fi
+    else
+        printf " \033[33mWARN\033[0m Environment file not found at %s. Booting default Nushell shell...\n" "$ENV_NU"
+        exec "$NU_EXE"
+    fi
+else
+    printf " \033[31mFAIL\033[0m Nushell (nu) could not be located in .local/bin.\n"
+    exit 1
+fi
