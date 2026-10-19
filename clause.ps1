@@ -238,7 +238,7 @@ Get-ChildItem -Path $ProjectRoot -Force -ErrorAction SilentlyContinue | Where-Ob
 # ==============================================================================
 # STAGE 2: NUSHELL HANDOFF (CLI, CI/CD NON-INTERACTIVE, & TTY ROUTING)
 # ==============================================================================
-$EnvNu    = Join-Path $NuConfigDir "env.nu"
+$EnvNu    = Join-Path $ProjectRoot "scripts\cli\nu\core\boot.nu"
 $ConfigNu = Join-Path $NuConfigDir "config.nu"
 $IsNonInteractive = [Console]::IsInputRedirected -or $env:CI -eq "true"
 
