@@ -1,6 +1,13 @@
 # .config/nushell/env.nu - ClauseOS Nushell Environment Lock
 
-let clause_root = ($env.FILE_PWD | path join ".." "..")
+# Resolve ClauseOS root directory reliably from bootloader environment or current directory
+let clause_root = if ("CLAUSE_PROJECT_ROOT" in $env) {
+    $env.CLAUSE_PROJECT_ROOT
+} else if ("CURRENT_FILE" in $env) {
+    ($env.CURRENT_FILE | path dirname | path join ".." "..")
+} else {
+    $env.PWD
+}
 
 # Root System Profile Anchors
 $env.CLAUSE_PROJECT_ROOT = $clause_root
