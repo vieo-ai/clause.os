@@ -7,16 +7,13 @@ $ProjectRoot = if ($env:CLAUSE_PROJECT_ROOT) { $env:CLAUSE_PROJECT_ROOT } else {
 # ==============================================================================
 # PRE-BOOT ENVIRONMENT LOCKING & ATTRIBUTE CLEANUP
 # ==============================================================================
+# Override Windows AppData variables early
+$env:APPDATA      = Join-Path $ProjectRoot ".local\appdata"
+$env:LOCALAPPDATA = Join-Path $ProjectRoot ".local\share"
+
 $EnvScript = Join-Path $ProjectRoot ".config\pwsh\env.ps1"
 if (Test-Path $EnvScript) {
     . $EnvScript
-}
-
-# Automatically apply Hidden attribute to top-level dot folders on Windows
-Get-ChildItem -Path $ProjectRoot -Directory -Filter ".*" | ForEach-Object {
-    if (-not ($_.Attributes -match "Hidden")) {
-        $_.Attributes = $_.Attributes -bor [System.IO.FileAttributes]::Hidden
-    }
 }
 
 $LocalBin    = Join-Path $ProjectRoot ".local\bin"
@@ -222,21 +219,50 @@ if (-not (Test-Path $CodeBin)) {
 if (Test-Path $TmpDir) { Remove-Item -Path $TmpDir -Recurse -Force -ErrorAction SilentlyContinue }
 
 # ---------------------------------------------------------------------------
-# WINDOWS PROFILE CLEANUP (FORCE HIDE OS & DOT ARTIFACTS)
+# WINDOWS PROFILE CLEANUP (FORCE HIDE OS ARTIFACTS, DOT-FOLDERS & DOT-FILES)
 # ---------------------------------------------------------------------------
-# Hide top-level dot folders and OS profile artifacts directly via attrib.exe
-$TargetsToHide = @(".local", ".config", ".cache", ".ssh", "AppData", "Microsoft")
-
-foreach ($Target in $TargetsToHide) {
+# 1. Hide default Windows profile folders
+$ProfileTargets = @("AppData", "Microsoft")
+foreach ($Target in $ProfileTargets) {
     $FullPath = Join-Path $ProjectRoot $Target
     if (Test-Path $FullPath) {
         attrib.exe +h "$FullPath" 2>$null
     }
 }
 
-# ==============================================================================
-# STAGE 2: PID 1 NUSHELL HANDOFF
-# ==============================================================================
-Write-Host "[ClauseOS] Kernel ready. Executing Nushell init..." -ForegroundColor Green
+# 2. Hide all top-level dot-items (both files and directories)
+Get-ChildItem -Path $ProjectRoot -Force -ErrorAction SilentlyContinue | Where-Object { $_.Name.StartsWith(".") } | ForEach-Object {
+    attrib.exe +h "$($_.FullName)" 2>$null
+}
 
-& $NuBin --config "$NuConfigDir\config.nu" --env-config "$NuConfigDir\env.nu"
+# ==============================================================================
+# STAGE 2: NUSHELL HANDOFF (CLI, CI/CD NON-INTERACTIVE, & TTY ROUTING)
+# ==============================================================================
+$EnvNu    = Join-Path $NuConfigDir "env.nu"
+$ConfigNu = Join-Path $NuConfigDir "config.nu"
+$IsNonInteractive = [Console]::IsInputRedirected -or $env:CI -eq "true"
+
+if (Test-Path $NuBin) {
+    if (Test-Path $EnvNu) {
+        if ($args.Count -gt 0) {
+            $CommandString = $args -join " "
+            & $NuBin --env-config $EnvNu -c "clause $CommandString"
+            exit $LASTEXITCODE
+        } elseif ($IsNonInteractive) {
+            & $NuBin --env-config $EnvNu -c "clause boot:check"
+            exit $LASTEXITCODE
+        } else {
+            if (Test-Path $ConfigNu) {
+                & $NuBin --env-config $EnvNu --config $ConfigNu -e "clause banner"
+            } else {
+                & $NuBin --env-config $EnvNu -e "clause banner"
+            }
+        }
+    } else {
+        Write-Host "  WARN  Environment file not found at $EnvNu. Booting default Nushell shell..." -ForegroundColor Yellow
+        & $NuBin
+    }
+} else {
+    Write-Host "  FAIL  Nushell (nu.exe) could not be located in .local\bin." -ForegroundColor Red
+    exit 1
+}
