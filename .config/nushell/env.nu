@@ -20,6 +20,10 @@ $env.XDG_DATA_HOME   = ($clause_root | path join ".local" "share")
 $env.XDG_STATE_HOME  = ($clause_root | path join ".local" "state")
 $env.XDG_CACHE_HOME  = ($clause_root | path join ".cache")
 
+# Windows Compatibility Environment Variables
+$env.APPDATA      = ($clause_root | path join ".local" "appdata")
+$env.LOCALAPPDATA = ($clause_root | path join ".local" "share")
+
 # Application Profile Targets
 $env.GIT_CONFIG_GLOBAL = ($clause_root | path join ".config" "git" "config")
 $env.NU_CONFIG_DIR     = ($clause_root | path join ".config" "nushell")
