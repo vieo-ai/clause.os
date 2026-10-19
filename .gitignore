@@ -10,3 +10,8 @@ Microsoft/
 
 # Ignore NuShell runtime files
 .config/nushell/history.txt
+
+# Os Specific Files
+Thumbs.db
+Desktop.ini
+.DS_Store
