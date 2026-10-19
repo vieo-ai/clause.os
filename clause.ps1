@@ -221,6 +221,19 @@ if (-not (Test-Path $CodeBin)) {
 # Cleanup transient downloads
 if (Test-Path $TmpDir) { Remove-Item -Path $TmpDir -Recurse -Force -ErrorAction SilentlyContinue }
 
+# ---------------------------------------------------------------------------
+# WINDOWS PROFILE CLEANUP (FORCE HIDE OS & DOT ARTIFACTS)
+# ---------------------------------------------------------------------------
+# Hide top-level dot folders and OS profile artifacts directly via attrib.exe
+$TargetsToHide = @(".local", ".config", ".cache", ".ssh", "AppData", "Microsoft")
+
+foreach ($Target in $TargetsToHide) {
+    $FullPath = Join-Path $ProjectRoot $Target
+    if (Test-Path $FullPath) {
+        attrib.exe +h "$FullPath" 2>$null
+    }
+}
+
 # ==============================================================================
 # STAGE 2: PID 1 NUSHELL HANDOFF
 # ==============================================================================
