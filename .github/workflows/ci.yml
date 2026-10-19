@@ -81,11 +81,11 @@ jobs:
         if: runner.os != 'Windows'
         run: |
           chmod +x clause.sh
-          ./clause.sh -c "print '[CI] ClauseOS POSIX Stage 0 Boot Verification Successful'"
+          ./clause.sh
 
       # --- Windows Test ---
       - name: Test ClauseOS Stage 0 Boot (Windows)
         if: runner.os == 'Windows'
         shell: powershell
         run: |
-          .\clause.ps1 -c "print '[CI] ClauseOS Windows Stage 0 Boot Verification Successful'"
+          .\clause.ps1
