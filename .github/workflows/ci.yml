@@ -28,16 +28,42 @@ on:
       - '.github/workflows/**'
 
 jobs:
+  # ---------------------------------------------------------------------------
+  # Step 1: Detect Runner Availability
+  # ---------------------------------------------------------------------------
+  detect-runner:
+    name: Determine Optimal Runner Platform
+    runs-on: ubuntu-latest
+    outputs:
+      linux_runner: ${{ steps.set-runner.outputs.linux_runner }}
+      windows_runner: ${{ steps.set-runner.outputs.windows_runner }}
+    steps:
+      - id: set-runner
+        run: |
+          # If running in private/self-hosted context with local labels configured
+          # Default to self-hosted labels if available, otherwise fall back to GitHub-hosted
+          if [ "${{ vars.USE_SELF_HOSTED }}" = "true" ]; then
+            echo "linux_runner=[\"self-hosted\", \"linux\"]" >> $GITHUB_OUTPUT
+            echo "windows_runner=[\"self-hosted\", \"windows\"]" >> $GITHUB_OUTPUT
+          else
+            echo "linux_runner=[\"ubuntu-latest\"]" >> $GITHUB_OUTPUT
+            echo "windows_runner=[\"windows-latest\"]" >> $GITHUB_OUTPUT
+          fi
+
+  # ---------------------------------------------------------------------------
+  # Step 2: Execute Tests on Resolved Runners
+  # ---------------------------------------------------------------------------
   test-workbench:
     name: Test ClauseOS Bootloader (${{ matrix.os }})
+    needs: detect-runner
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
-            runner: [self-hosted, linux]
-          - os: windows-latest
-            runner: [self-hosted, windows]
+          - os: POSIX
+            runner: ${{ fromJson(needs.detect-runner.outputs.linux_runner) }}
+          - os: Windows
+            runner: ${{ fromJson(needs.detect-runner.outputs.windows_runner) }}
 
     runs-on: ${{ matrix.runner }}
 
@@ -55,7 +81,6 @@ jobs:
         if: runner.os != 'Windows'
         run: |
           chmod +x clause.sh
-          # Pass non-interactive command execution to Nushell via bootloader
           ./clause.sh -c "print '[CI] ClauseOS POSIX Stage 0 Boot Verification Successful'"
 
       # --- Windows Test ---
