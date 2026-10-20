@@ -1,6 +1,12 @@
 [env]
 # Path Shims Anchor
-"_.path"      = ["{{config_root}}/.local/bin"]
+_.path      = [
+    "{{config_root}}/.local/bin",
+    "{{config_root}}/.local/app/lemonade",
+    "{{config_root}}/.local/app/fastflowlm",
+    "{{config_root}}/.local/app/apm",
+    "{{config_root}}/.local/app/vscode/bin",    
+]
 MISE_SHIM_DIR = "{{config_root}}/.local/bin"
 
 # Root System Profile Anchors
