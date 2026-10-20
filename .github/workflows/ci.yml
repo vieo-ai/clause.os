@@ -6,6 +6,7 @@ on:
     branches: [ main ]
     paths:
       - 'scripts/**'
+      - 'tests/**'
       - '.config/**'
       - '.clause.toml'
       - '.mise.toml'
@@ -18,6 +19,7 @@ on:
     branches: [ main ]
     paths:
       - 'scripts/**'
+      - 'tests/**'
       - '.config/**'
       - '.clause.toml'
       - '.mise.toml'
@@ -79,16 +81,19 @@ jobs:
           git config core.fileMode false
           git config core.symlinks true
 
-      # --- POSIX Test (Linux & macOS) ---
-      - name: Test ClauseOS Stage 0 Boot (POSIX)
+      # --- POSIX Test & Systems Assertion Suite (Linux & macOS) ---
+      - name: Test ClauseOS Stage 0 Boot & Assertion Suite (POSIX)
         if: runner.os != 'Windows'
         run: |
           chmod +x start.sh
-          ./start.sh
+          CI=true ./start.sh
+          ./.local/bin/just test
 
-      # --- Windows Test ---
-      - name: Test ClauseOS Stage 0 Boot (Windows)
+      # --- Windows Test & Systems Assertion Suite ---
+      - name: Test ClauseOS Stage 0 Boot & Assertion Suite (Windows)
         if: runner.os == 'Windows'
         shell: powershell
         run: |
+          $env:CI = "true"
           .\start.bat
+          .\.local\bin\just test
