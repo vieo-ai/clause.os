@@ -33,4 +33,4 @@ docker-check:
 
 # Run the system-level assertion test suite
 test:
-    nu tests/system/run_all.nu
+    ./.local/bin/nu tests/system/run_all.nu
