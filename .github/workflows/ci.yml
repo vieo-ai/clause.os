@@ -83,12 +83,12 @@ jobs:
       - name: Test ClauseOS Stage 0 Boot (POSIX)
         if: runner.os != 'Windows'
         run: |
-          chmod +x clause.sh
-          ./clause.sh
+          chmod +x install.sh
+          ./install.sh
 
       # --- Windows Test ---
       - name: Test ClauseOS Stage 0 Boot (Windows)
         if: runner.os == 'Windows'
         shell: powershell
         run: |
-          .\clause.ps1
+          .\install.bat
