@@ -2,7 +2,8 @@
 # Stage 1 Environment Setup & Boot Dispatcher for ClauseOS
 
 # 1. Resolve Project Root relative to boot.nu (4 levels up from scripts/cli/nu/core/)
-let script_dir = ($nu.current-file | path dirname)
+let script_path = if ("CURRENT_FILE" in $env) { $env.CURRENT_FILE } else { $env.FILE_PWD? | default $env.PWD }
+let script_dir = ($script_path | path dirname)
 let resolved_root = ($script_dir | path join ".." ".." ".." "..")
 
 $env.CLAUSE_PROJECT_ROOT = ($env.CLAUSE_PROJECT_ROOT? | default $resolved_root)
