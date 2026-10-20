@@ -1,4 +1,7 @@
 [bootstrap]
+pwsh = "7.6.7"
+
+[stage0]
 mise = "2026.10.12"
 just = "1.59.0"
 nu   = "0.116.1"
