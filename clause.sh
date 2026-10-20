@@ -224,7 +224,7 @@ rm -rf "$TMP_DIR"
 # STAGE 2: NUSHELL HANDOFF (CLI, CI/CD NON-INTERACTIVE, & TTY ROUTING)
 # ==============================================================================
 NU_EXE="$LOCAL_BIN/nu"
-ENV_NU="$NU_CONFIG_DIR/env.nu"
+ENV_NU="$PROJECT_ROOT/scripts/cli/nu/core/boot.nu"
 CONFIG_NU="$NU_CONFIG_DIR/config.nu"
 
 if [ -f "$NU_EXE" ] && [ -x "$NU_EXE" ]; then
