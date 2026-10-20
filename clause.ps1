@@ -256,6 +256,18 @@ if ($IsWindows -or $env:OS -eq "Windows_NT") {
 }
 
 # ==============================================================================
+# GENERATE NUSHELL MISE ACTIVATION OVERLAY (NATIVE NUSHELL EXECUTION)
+# ==============================================================================
+$MiseBin = Join-Path $LocalBin "mise$ExeExt"
+$NuBin   = Join-Path $LocalBin "nu$ExeExt"
+$MiseNu  = Join-Path $NuConfigDir "mise.nu"
+
+if ((Test-Path $MiseBin) -and (Test-Path $NuBin)) {
+    Write-Host "[ClauseOS Stage 0] Syncing Mise Nushell overlay..." -ForegroundColor Cyan
+    & $NuBin -c "mise activate nu | save '$MiseNu' --force"
+}
+
+# ==============================================================================
 # STAGE 2: NUSHELL HANDOFF (CLI, CI/CD NON-INTERACTIVE, & TTY ROUTING)
 # ==============================================================================
 $EnvNu    = Join-Path $ProjectRoot "scripts/cli/nu/core/boot.nu"
