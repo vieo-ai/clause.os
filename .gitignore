@@ -10,6 +10,7 @@ Microsoft/
 
 # Ignore NuShell runtime files
 .config/nushell/history.txt
+.config/nushell/mise.nu
 
 # Os Specific Files
 Thumbs.db
