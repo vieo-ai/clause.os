@@ -2,7 +2,7 @@
 # clause.sh - POSIX Stage 0 Microkernel & Confined Profile Bootloader
 set -e
 
-PROJECT_ROOT="${CLAUSE_PROJECT_ROOT:-$(cd "$(dirname "$0")" && pwd -P)}"
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export CLAUSE_PROJECT_ROOT="$PROJECT_ROOT"
 
 # ==============================================================================
