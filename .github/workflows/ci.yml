@@ -36,22 +36,23 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       linux_runner: ${{ steps.set-runner.outputs.linux_runner }}
+      macos_runner: ${{ steps.set-runner.outputs.macos_runner }}
       windows_runner: ${{ steps.set-runner.outputs.windows_runner }}
     steps:
       - id: set-runner
         run: |
-          # If running in private/self-hosted context with local labels configured
-          # Default to self-hosted labels if available, otherwise fall back to GitHub-hosted
           if [ "${{ vars.USE_SELF_HOSTED }}" = "true" ]; then
             echo "linux_runner=[\"self-hosted\", \"linux\"]" >> $GITHUB_OUTPUT
+            echo "macos_runner=[\"self-hosted\", \"macOS\"]" >> $GITHUB_OUTPUT
             echo "windows_runner=[\"self-hosted\", \"windows\"]" >> $GITHUB_OUTPUT
           else
             echo "linux_runner=[\"ubuntu-latest\"]" >> $GITHUB_OUTPUT
+            echo "macos_runner=[\"macos-latest\"]" >> $GITHUB_OUTPUT
             echo "windows_runner=[\"windows-latest\"]" >> $GITHUB_OUTPUT
           fi
 
   # ---------------------------------------------------------------------------
-  # Step 2: Execute Tests on Resolved Runners
+  # Step 2: Execute Tests on Resolved Matrix
   # ---------------------------------------------------------------------------
   test-workbench:
     name: Test ClauseOS Bootloader (${{ matrix.os }})
@@ -60,8 +61,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: POSIX
+          - os: Linux
             runner: ${{ fromJson(needs.detect-runner.outputs.linux_runner) }}
+          - os: macOS
+            runner: ${{ fromJson(needs.detect-runner.outputs.macos_runner) }}
           - os: Windows
             runner: ${{ fromJson(needs.detect-runner.outputs.windows_runner) }}
 
@@ -76,7 +79,7 @@ jobs:
           git config core.fileMode false
           git config core.symlinks true
 
-      # --- POSIX Test (Linux / macOS) ---
+      # --- POSIX Test (Linux & macOS) ---
       - name: Test ClauseOS Stage 0 Boot (POSIX)
         if: runner.os != 'Windows'
         run: |
