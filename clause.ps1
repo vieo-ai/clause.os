@@ -292,7 +292,8 @@ $MiseNu  = Join-Path $NuConfigDir "mise.nu"
 
 if ((Test-Path $MiseBin) -and (Test-Path $NuBin)) {
     Write-Host "[ClauseOS Stage 0] Syncing Mise Nushell overlay..." -ForegroundColor Cyan
-    & $NuBin -c "'$MiseBin' activate nu | save '$MiseNu' --force"
+    # Use ^ before quoted executable path in Nushell syntax
+    & $NuBin -c "^'$MiseBin' activate nu | save '$MiseNu' --force"
 }
 
 # ==============================================================================
