@@ -4,10 +4,17 @@ $ErrorActionPreference = 'Stop'
 $ProjectRoot = if ($env:CLAUSE_PROJECT_ROOT) { $env:CLAUSE_PROJECT_ROOT } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
 
 # ==============================================================================
+# OS & PLATFORM DETECTION
+# ==============================================================================
+$IsOSWindows = $IsWindows -or $env:OS -eq "Windows_NT"
+$IsOSMac     = $IsMacOS -or ($PSVersionTable.OS -like "*Darwin*")
+$IsOSLinux   = -not $IsOSWindows -and -not $IsOSMac
+
+# ==============================================================================
 # PRE-BOOT ENVIRONMENT LOCKING & ATTRIBUTE CLEANUP
 # ==============================================================================
 # Override Windows AppData variables early (Windows only)
-if ($IsWindows -or $env:OS -eq "Windows_NT") {
+if ($IsOSWindows) {
     $env:APPDATA      = Join-Path $ProjectRoot ".local\appdata"
     $env:LOCALAPPDATA = Join-Path $ProjectRoot ".local\share"
 }
@@ -42,14 +49,20 @@ function Get-TomlValue([string]$Content, [string]$Key) {
 }
 
 function Get-File([string]$Url, [string]$OutFile) {
-    if (Get-Command curl.exe -ErrorAction SilentlyContinue) {
-        curl.exe -sSL "$Url" -o "$OutFile"
-        if ($LASTEXITCODE -ne 0) { throw "[ClauseOS] Download failed via curl.exe for URL: $Url" }
-    } elseif (Get-Command curl -ErrorAction SilentlyContinue) {
-        curl -sSL "$Url" -o "$OutFile"
-        if ($LASTEXITCODE -ne 0) { throw "[ClauseOS] Download failed via curl for URL: $Url" }
+    if ($IsOSWindows) {
+        if (Get-Command curl.exe -ErrorAction SilentlyContinue) {
+            curl.exe -sSL "$Url" -o "$OutFile"
+            if ($LASTEXITCODE -ne 0) { throw "[ClauseOS] Download failed via curl.exe for URL: $Url" }
+        } else {
+            Invoke-WebRequest -Uri $Url -OutFile $OutFile -UseBasicParsing
+        }
     } else {
-        Invoke-WebRequest -Uri $Url -OutFile $OutFile -UseBasicParsing
+        if (Get-Command curl -ErrorAction SilentlyContinue) {
+            curl -sSL "$Url" -o "$OutFile"
+            if ($LASTEXITCODE -ne 0) { throw "[ClauseOS] Download failed via curl for URL: $Url" }
+        } else {
+            Invoke-WebRequest -Uri $Url -OutFile $OutFile -UseBasicParsing
+        }
     }
 }
 
@@ -57,14 +70,19 @@ function Expand-HermeticArchive([string]$ArchivePath, [string]$DestinationPath) 
     if (-not (Test-Path $DestinationPath)) {
         New-Item -ItemType Directory -Force -Path $DestinationPath | Out-Null
     }
-    if (Get-Command tar.exe -ErrorAction SilentlyContinue) {
-        tar.exe -xf "$ArchivePath" -C "$DestinationPath"
-        if ($LASTEXITCODE -ne 0) { throw "[ClauseOS] Archive extraction failed via tar.exe for: $ArchivePath" }
-    } elseif (Get-Command tar -ErrorAction SilentlyContinue) {
-        tar -xf "$ArchivePath" -C "$DestinationPath"
-        if ($LASTEXITCODE -ne 0) { throw "[ClauseOS] Archive extraction failed via tar for: $ArchivePath" }
+
+    if ($IsOSWindows) {
+        if (Get-Command tar.exe -ErrorAction SilentlyContinue) {
+            tar.exe -xf "$ArchivePath" -C "$DestinationPath"
+            if ($LASTEXITCODE -ne 0) { throw "[ClauseOS] Archive extraction failed via tar.exe for: $ArchivePath" }
+        } else {
+            Expand-Archive -Path $ArchivePath -DestinationPath $DestinationPath -Force
+        }
     } else {
-        Expand-Archive -Path $ArchivePath -DestinationPath $DestinationPath -Force
+        # POSIX (Linux / macOS / WSL2): Force native Linux/macOS tar to prevent Windows tar.exe leak
+        $NativeTar = if (Test-Path "/usr/bin/tar") { "/usr/bin/tar" } elseif (Test-Path "/bin/tar") { "/bin/tar" } else { "tar" }
+        & $NativeTar -xf "$ArchivePath" -C "$DestinationPath"
+        if ($LASTEXITCODE -ne 0) { throw "[ClauseOS] Archive extraction failed via $NativeTar for: $ArchivePath" }
     }
 }
 
@@ -81,7 +99,7 @@ function Install-ExtractedArchive([string]$ExtractTarget, [string]$DestinationPa
 }
 
 function Set-PosixExecutable([string]$FilePath) {
-    if (-not ($IsWindows -or $env:OS -eq "Windows_NT")) {
+    if (-not $IsOSWindows) {
         if (Get-Command chmod -ErrorAction SilentlyContinue) {
             chmod +x "$FilePath" 2>$null
         }
@@ -116,7 +134,7 @@ $ApmTag        = if ($ApmVer.StartsWith("v")) { $ApmVer } else { "v$ApmVer" }
 }
 
 # Target Executable Names
-$ExeExt = if ($IsWindows -or $env:OS -eq "Windows_NT") { ".exe" } else { "" }
+$ExeExt = if ($IsOSWindows) { ".exe" } else { "" }
 
 # ==============================================================================
 # STAGE 0: CORE SYSTEM ENGINE SEEDING
@@ -126,7 +144,7 @@ $ExeExt = if ($IsWindows -or $env:OS -eq "Windows_NT") { ".exe" } else { "" }
 $MiseBin = Join-Path $LocalBin "mise$ExeExt"
 if (-not (Test-Path $MiseBin)) {
     Write-Host "[ClauseOS Stage 0] Pre-seeding Mise (v${MiseVer}) into .local/bin/..." -ForegroundColor Cyan
-    $MiseAsset = if ($IsWindows) { "mise-v${MiseVer}-windows-x64.zip" } elseif ($IsMacOS) { "mise-v${MiseVer}-macos-x64.tar.gz" } else { "mise-v${MiseVer}-linux-x64.tar.gz" }
+    $MiseAsset = if ($IsOSWindows) { "mise-v${MiseVer}-windows-x64.zip" } elseif ($IsOSMac) { "mise-v${MiseVer}-macos-x64.tar.gz" } else { "mise-v${MiseVer}-linux-x64.tar.gz" }
     $ArchivePath = Join-Path $TmpDir $MiseAsset
     Get-File -Url "https://github.com/jdx/mise/releases/download/v${MiseVer}/$MiseAsset" -OutFile $ArchivePath
     
@@ -143,7 +161,7 @@ if (-not (Test-Path $MiseBin)) {
 $JustBin = Join-Path $LocalBin "just$ExeExt"
 if (-not (Test-Path $JustBin)) {
     Write-Host "[ClauseOS Stage 0] Pre-seeding Just (v${JustVer}) into .local/bin/..." -ForegroundColor Cyan
-    $JustAsset = if ($IsWindows) { "just-${JustVer}-x86_64-pc-windows-msvc.zip" } elseif ($IsMacOS) { "just-${JustVer}-x86_64-apple-darwin.tar.gz" } else { "just-${JustVer}-x86_64-unknown-linux-musl.tar.gz" }
+    $JustAsset = if ($IsOSWindows) { "just-${JustVer}-x86_64-pc-windows-msvc.zip" } elseif ($IsOSMac) { "just-${JustVer}-x86_64-apple-darwin.tar.gz" } else { "just-${JustVer}-x86_64-unknown-linux-musl.tar.gz" }
     $ArchivePath = Join-Path $TmpDir $JustAsset
     Get-File -Url "https://github.com/casey/just/releases/download/${JustVer}/$JustAsset" -OutFile $ArchivePath
     
@@ -160,7 +178,7 @@ if (-not (Test-Path $JustBin)) {
 $NuBin = Join-Path $LocalBin "nu$ExeExt"
 if (-not (Test-Path $NuBin)) {
     Write-Host "[ClauseOS Stage 0] Pre-seeding Nushell (v${NuVer}) into .local/bin/..." -ForegroundColor Cyan
-    $NuAsset = if ($IsWindows) { "nu-${NuVer}-x86_64-pc-windows-msvc.zip" } elseif ($IsMacOS) { "nu-${NuVer}-x86_64-apple-darwin.tar.gz" } else { "nu-${NuVer}-x86_64-unknown-linux-gnu.tar.gz" }
+    $NuAsset = if ($IsOSWindows) { "nu-${NuVer}-x86_64-pc-windows-msvc.zip" } elseif ($IsOSMac) { "nu-${NuVer}-x86_64-apple-darwin.tar.gz" } else { "nu-${NuVer}-x86_64-unknown-linux-gnu.tar.gz" }
     $ArchivePath = Join-Path $TmpDir $NuAsset
     Get-File -Url "https://github.com/nushell/nushell/releases/download/${NuVer}/$NuAsset" -OutFile $ArchivePath
     
@@ -181,7 +199,7 @@ if (-not (Test-Path $NuBin)) {
 $LemonadeCheck = Get-ChildItem -Path $InferenceGpuDir -ErrorAction SilentlyContinue
 if (-not $LemonadeCheck) {
     Write-Host "[ClauseOS Stage 1] Seeding Lemonade GPU Engine (${LemonadeTag})..." -ForegroundColor Cyan
-    $LemonadeAsset = if ($IsWindows) { "lemonade-embeddable-${LemonadeClean}-windows-x64.zip" } elseif ($IsMacOS) { "lemonade-embeddable-${LemonadeClean}-macos-arm64.tar.gz" } else { "lemonade-embeddable-${LemonadeClean}-ubuntu-x64.tar.gz" }
+    $LemonadeAsset = if ($IsOSWindows) { "lemonade-embeddable-${LemonadeClean}-windows-x64.zip" } elseif ($IsOSMac) { "lemonade-embeddable-${LemonadeClean}-macos-arm64.tar.gz" } else { "lemonade-embeddable-${LemonadeClean}-ubuntu-x64.tar.gz" }
     $ArchivePath = Join-Path $TmpDir $LemonadeAsset
     Get-File -Url "https://github.com/lemonade-sdk/lemonade/releases/download/${LemonadeTag}/${LemonadeAsset}" -OutFile $ArchivePath
     
@@ -191,11 +209,11 @@ if (-not $LemonadeCheck) {
 }
 
 # 5. FastFlowLM NPU Engine -> .local/app/fastflowlm/ (Linux & Windows)
-if (-not $IsMacOS) {
+if (-not $IsOSMac) {
     $FastFlowCheck = Get-ChildItem -Path $InferenceNpuDir -ErrorAction SilentlyContinue
     if (-not $FastFlowCheck) {
         Write-Host "[ClauseOS Stage 1] Seeding FastFlowLM NPU Engine (${FastFlowTag})..." -ForegroundColor Cyan
-        $FastFlowAsset = if ($IsWindows) { "fastflowlm_${FastFlowClean}_windows_amd64.zip" } else { "fastflowlm_${FastFlowClean}_linux.tar.gz" }
+        $FastFlowAsset = if ($IsOSWindows) { "fastflowlm_${FastFlowClean}_windows_amd64.zip" } else { "fastflowlm_${FastFlowClean}_linux.tar.gz" }
         $ArchivePath = Join-Path $TmpDir $FastFlowAsset
         Get-File -Url "https://github.com/ROCm/FastFlowLM/releases/download/${FastFlowTag}/${FastFlowAsset}" -OutFile $ArchivePath
         
@@ -209,7 +227,7 @@ if (-not $IsMacOS) {
 $ApmBin = Join-Path $ApmDir "apm$ExeExt"
 if (-not (Test-Path $ApmBin)) {
     Write-Host "[ClauseOS Stage 1] Seeding Agent Package Manager (${ApmTag})..." -ForegroundColor Cyan
-    $ApmAsset = if ($IsWindows) { "apm-windows-x86_64.zip" } elseif ($IsMacOS) { "apm-darwin-x86_64.tar.gz" } else { "apm-linux-x86_64.tar.gz" }
+    $ApmAsset = if ($IsOSWindows) { "apm-windows-x86_64.zip" } elseif ($IsOSMac) { "apm-darwin-x86_64.tar.gz" } else { "apm-linux-x86_64.tar.gz" }
     $ArchivePath = Join-Path $TmpDir $ApmAsset
     Get-File -Url "https://github.com/microsoft/apm/releases/download/${ApmTag}/${ApmAsset}" -OutFile $ArchivePath
     
@@ -223,8 +241,8 @@ if (-not (Test-Path $ApmBin)) {
 $CodeCheck = Get-ChildItem -Path $CodeDir -ErrorAction SilentlyContinue
 if (-not $CodeCheck) {
     Write-Host "[ClauseOS Stage 1] Seeding VS Code Portable Engine (v${VsCodeVer})..." -ForegroundColor Cyan
-    $CodeAsset = if ($IsWindows) { "vscode-win32-x64-${VsCodeVer}.zip" } elseif ($IsMacOS) { "VSCode-darwin-universal.zip" } else { "vscode-linux-x64-${VsCodeVer}.tar.gz" }
-    $CodeUrl = if ($IsWindows) { "https://update.code.visualstudio.com/${VsCodeVer}/win32-x64-archive/stable" } elseif ($IsMacOS) { "https://update.code.visualstudio.com/${VsCodeVer}/darwin-universal/stable" } else { "https://update.code.visualstudio.com/${VsCodeVer}/linux-x64/stable" }
+    $CodeAsset = if ($IsOSWindows) { "vscode-win32-x64-${VsCodeVer}.zip" } elseif ($IsOSMac) { "VSCode-darwin-universal.zip" } else { "vscode-linux-x64-${VsCodeVer}.tar.gz" }
+    $CodeUrl = if ($IsOSWindows) { "https://update.code.visualstudio.com/${VsCodeVer}/win32-x64-archive/stable" } elseif ($IsOSMac) { "https://update.code.visualstudio.com/${VsCodeVer}/darwin-universal/stable" } else { "https://update.code.visualstudio.com/${VsCodeVer}/linux-x64/stable" }
     
     $ArchivePath = Join-Path $TmpDir $CodeAsset
     Get-File -Url $CodeUrl -OutFile $ArchivePath
@@ -241,7 +259,7 @@ if (Test-Path $TmpDir) { Remove-Item -Path $TmpDir -Recurse -Force -ErrorAction 
 # ---------------------------------------------------------------------------
 # WINDOWS PROFILE CLEANUP (GRACEFULLY SKIPPED ON POSIX)
 # ---------------------------------------------------------------------------
-if ($IsWindows -or $env:OS -eq "Windows_NT") {
+if ($IsOSWindows) {
     if (Get-Command attrib.exe -ErrorAction SilentlyContinue) {
         $ProfileTargets = @("AppData", "Microsoft")
         foreach ($Target in $ProfileTargets) {
