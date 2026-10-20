@@ -31,6 +31,6 @@ service *args:
 docker-check:
     clause docker:check
 
-# Run the system-level assertion test suite
+# Run system assertion test suite using hermetic Nushell with boot environment
 test:
-    ./.local/bin/nu tests/system/run_all.nu
+    ./.local/bin/nu --env-config scripts/cli/nu/core/boot.nu tests/system/run_all.nu
