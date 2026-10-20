@@ -3,7 +3,7 @@
 
 # 1. Resolve Project Root (4 levels up from scripts/cli/nu/core/boot.nu)
 let current_dir = ($env.FILE_PWD? | default $env.PWD)
-let resolved_root = ($current_dir | path join ".." ".." ".." ".." | path expand)
+let resolved_root = ($current_dir | path join ".." ".." ".." | path expand)
 
 $env.CLAUSE_PROJECT_ROOT = ($env.CLAUSE_PROJECT_ROOT? | default $resolved_root)
 
