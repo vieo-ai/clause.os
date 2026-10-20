@@ -292,7 +292,7 @@ $MiseNu  = Join-Path $NuConfigDir "mise.nu"
 
 if ((Test-Path $MiseBin) -and (Test-Path $NuBin)) {
     Write-Host "[ClauseOS Stage 0] Syncing Mise Nushell overlay..." -ForegroundColor Cyan
-    & $NuBin --starting-dir $ProjectRoot -c "mise activate nu | save '$MiseNu' --force"
+    & $NuBin -c "mise activate nu | save '$MiseNu' --force"
 }
 
 # ==============================================================================
@@ -308,21 +308,21 @@ if (Test-Path $NuBin) {
     if (Test-Path $EnvNu) {
         if ($args.Count -gt 0) {
             $CommandString = $args -join " "
-            & $NuBin --starting-dir $ProjectRoot --env-config $EnvNu -c "clause $CommandString"
+            & $NuBin --env-config $EnvNu -c "clause $CommandString"
             exit $LASTEXITCODE
         } elseif ($IsNonInteractive) {
-            & $NuBin --starting-dir $ProjectRoot --env-config $EnvNu -c "clause boot:check"
+            & $NuBin --env-config $EnvNu -c "clause boot:check"
             exit $LASTEXITCODE
         } else {
             if (Test-Path $ConfigNu) {
-                & $NuBin --starting-dir $ProjectRoot --env-config $EnvNu --config $ConfigNu -e "clause banner"
+                & $NuBin --env-config $EnvNu --config $ConfigNu -e "clause banner"
             } else {
-                & $NuBin --starting-dir $ProjectRoot --env-config $EnvNu -e "clause banner"
+                & $NuBin --env-config $EnvNu -e "clause banner"
             }
         }
     } else {
         Write-Host "  WARN  Environment file not found at $EnvNu. Booting default Nushell shell..." -ForegroundColor Yellow
-        & $NuBin --starting-dir $ProjectRoot
+        & $NuBin
     }
 } else {
     Write-Host "  FAIL  Nushell ($NuBin) could not be located in .local/bin." -ForegroundColor Red
