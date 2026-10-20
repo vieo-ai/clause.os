@@ -40,3 +40,6 @@ let local_bin = ($clause_root | path join ".local" "bin")
 if not ($env.PATH | any { |p| $p == $local_bin }) {
     $env.PATH = ($env.PATH | prepend $local_bin)
 }
+
+let mise_path = $nu.default-config-dir | path join mise.nu
+^mise activate nu | save $mise_path --force
