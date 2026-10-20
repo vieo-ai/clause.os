@@ -87,14 +87,24 @@ function Expand-HermeticArchive([string]$ArchivePath, [string]$DestinationPath) 
 }
 
 function Install-ExtractedArchive([string]$ExtractTarget, [string]$DestinationPath) {
+    # Guard: Ensure ExtractTarget is explicitly within $TmpDir to protect project root
+    if (-not $ExtractTarget.StartsWith($TmpDir)) {
+        throw "[ClauseOS] Critical Error: Extraction target $ExtractTarget is outside $TmpDir"
+    }
+
     if (-not (Test-Path $DestinationPath)) {
         New-Item -ItemType Directory -Force -Path $DestinationPath | Out-Null
     }
-    $ChildItems = Get-ChildItem -Path $ExtractTarget
+
+    $ChildItems = Get-ChildItem -Path $ExtractTarget -Force -ErrorAction Stop
+    if ($ChildItems.Count -eq 0) {
+        throw "[ClauseOS] Error: Extract target is empty: $ExtractTarget"
+    }
+
     if ($ChildItems.Count -eq 1 -and $ChildItems[0].PSIsContainer) {
-        Get-ChildItem -Path $ChildItems[0].FullName | Move-Item -Destination $DestinationPath -Force
+        Get-ChildItem -Path $ChildItems[0].FullName -Force | Move-Item -Destination $DestinationPath -Force
     } else {
-        Get-ChildItem -Path $ExtractTarget | Move-Item -Destination $DestinationPath -Force
+        Get-ChildItem -Path $ExtractTarget -Force | Move-Item -Destination $DestinationPath -Force
     }
 }
 
@@ -152,7 +162,7 @@ if (-not (Test-Path $MiseBin)) {
     Expand-HermeticArchive -ArchivePath $ArchivePath -DestinationPath $ExtractTarget
     $FoundMise = Get-ChildItem -Path $ExtractTarget -Filter "mise$ExeExt" -Recurse | Select-Object -First 1
     if ($FoundMise) {
-        Get-ChildItem -Path $FoundMise.DirectoryName | Move-Item -Destination $LocalBin -Force
+        Move-Item -Path $FoundMise.FullName -Destination $LocalBin -Force
         Set-PosixExecutable -FilePath $MiseBin
     }
 }
@@ -186,7 +196,7 @@ if (-not (Test-Path $NuBin)) {
     Expand-HermeticArchive -ArchivePath $ArchivePath -DestinationPath $ExtractTarget
     $FoundNu = Get-ChildItem -Path $ExtractTarget -Filter "nu$ExeExt" -Recurse | Select-Object -First 1
     if ($FoundNu) {
-        Get-ChildItem -Path $FoundNu.DirectoryName | Move-Item -Destination $LocalBin -Force
+        Move-Item -Path $FoundNu.FullName -Destination $LocalBin -Force
         Set-PosixExecutable -FilePath $NuBin
     }
 }
@@ -282,12 +292,14 @@ $MiseNu  = Join-Path $NuConfigDir "mise.nu"
 
 if ((Test-Path $MiseBin) -and (Test-Path $NuBin)) {
     Write-Host "[ClauseOS Stage 0] Syncing Mise Nushell overlay..." -ForegroundColor Cyan
-    & $NuBin -c "mise activate nu | save '$MiseNu' --force"
+    & $NuBin --starting-dir $ProjectRoot -c "mise activate nu | save '$MiseNu' --force"
 }
 
 # ==============================================================================
 # STAGE 2: NUSHELL HANDOFF (CLI, CI/CD NON-INTERACTIVE, & TTY ROUTING)
 # ==============================================================================
+Set-Location -Path $ProjectRoot
+
 $EnvNu    = Join-Path $ProjectRoot "scripts/cli/nu/core/boot.nu"
 $ConfigNu = Join-Path $NuConfigDir "config.nu"
 $IsNonInteractive = [Console]::IsInputRedirected -or $env:CI -eq "true"
@@ -296,21 +308,21 @@ if (Test-Path $NuBin) {
     if (Test-Path $EnvNu) {
         if ($args.Count -gt 0) {
             $CommandString = $args -join " "
-            & $NuBin --env-config $EnvNu -c "clause $CommandString"
+            & $NuBin --starting-dir $ProjectRoot --env-config $EnvNu -c "clause $CommandString"
             exit $LASTEXITCODE
         } elseif ($IsNonInteractive) {
-            & $NuBin --env-config $EnvNu -c "clause boot:check"
+            & $NuBin --starting-dir $ProjectRoot --env-config $EnvNu -c "clause boot:check"
             exit $LASTEXITCODE
         } else {
             if (Test-Path $ConfigNu) {
-                & $NuBin --env-config $EnvNu --config $ConfigNu -e "clause banner"
+                & $NuBin --starting-dir $ProjectRoot --env-config $EnvNu --config $ConfigNu -e "clause banner"
             } else {
-                & $NuBin --env-config $EnvNu -e "clause banner"
+                & $NuBin --starting-dir $ProjectRoot --env-config $EnvNu -e "clause banner"
             }
         }
     } else {
         Write-Host "  WARN  Environment file not found at $EnvNu. Booting default Nushell shell..." -ForegroundColor Yellow
-        & $NuBin
+        & $NuBin --starting-dir $ProjectRoot
     }
 } else {
     Write-Host "  FAIL  Nushell ($NuBin) could not be located in .local/bin." -ForegroundColor Red
