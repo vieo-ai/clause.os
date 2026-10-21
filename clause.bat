@@ -57,6 +57,6 @@ tar.exe -xf "%ZIP_PATH%" -C "%LOCAL_BIN%"
 if exist "%TMP_DIR%" rmdir /s /q "%TMP_DIR%"
 
 :RUN_HANDOFF
-"%PWSH_EXE%" -NoProfile -ExecutionPolicy Bypass -File "%CLAUSE_ROOT%\clause.ps1" %*
+"%PWSH_EXE%" -NoProfile -ExecutionPolicy Bypass -File "%CLAUSE_ROOT%\boot.ps1" %*
 
 endlocal

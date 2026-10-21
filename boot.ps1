@@ -1,4 +1,4 @@
-# clause.ps1 - Cross-Platform Stage 0 Microkernel & Confined Profile Bootloader
+# boot.ps1 - Cross-Platform Stage 0 Microkernel & Confined Profile Bootloader
 $ErrorActionPreference = 'Stop'
 
 $ProjectRoot = if ($env:CLAUSE_PROJECT_ROOT) { $env:CLAUSE_PROJECT_ROOT } else { Split-Path -Parent $MyInvocation.MyCommand.Path }

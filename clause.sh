@@ -73,4 +73,4 @@ if [ ! -f "$PWSH_EXE" ]; then
     rm -rf "$TMP_DIR"
 fi
 
-exec "$PWSH_EXE" -NoProfile -ExecutionPolicy Bypass -File "$PROJECT_ROOT/clause.ps1" "$@"
+exec "$PWSH_EXE" -NoProfile -ExecutionPolicy Bypass -File "$PROJECT_ROOT/boot.ps1" "$@"
