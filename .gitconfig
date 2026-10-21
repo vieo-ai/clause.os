@@ -1,0 +1,8 @@
+[user]
+	name = mrpastewart
+	email = p.stewart@vieo.ai
+[credential]
+	useHttpPath = true
+[core]
+	longpaths = true
+	symlinks = true
