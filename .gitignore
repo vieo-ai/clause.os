@@ -2,6 +2,7 @@
 *.exe
 .local/
 .cache/
+.ssh/
 
 # Ignore userhome redirects to clause root
 AppData/
@@ -19,3 +20,5 @@ Desktop.ini
 
 # User-specific files
 .archive/
+
+packages/
