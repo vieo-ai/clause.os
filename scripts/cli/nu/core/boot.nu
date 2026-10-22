@@ -31,3 +31,6 @@ $env.PROMPT_COMMAND = {||
     let relative_pwd = ($env.PWD | str replace $env.CLAUSE_PROJECT_ROOT ".")
     $"(ansi cyan)[ClauseOS](ansi reset) (ansi yellow)($relative_pwd)(ansi reset) > "
 }
+
+alias carrier = clause
+alias cx = clause
