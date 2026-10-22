@@ -59,7 +59,7 @@ if (-not $isTracked) {
     }
 
     Write-Host "Subtree prefix '$Prefix' not detected in Git. Adding subtree..." -ForegroundColor Cyan
-    git subtree add --prefix=$Prefix $RemoteUrl $Branch --squash -m$msg
+    git subtree add --prefix=$Prefix $RemoteUrl $Branch --squash -m $msg
 
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to add git subtree for $Prefix."
@@ -73,7 +73,7 @@ if (-not $isTracked) {
     }
 
     Write-Host "Subtree prefix '$Prefix' found. Pulling latest updates from upstream..." -ForegroundColor Cyan
-    git subtree pull --prefix=$Prefix $RemoteUrl $Branch --squash -m$msg
+    git subtree pull --prefix=$Prefix $RemoteUrl $Branch --squash -m $msg
 
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to pull updates for git subtree $Prefix."
