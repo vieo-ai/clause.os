@@ -388,6 +388,10 @@ if ((Test-Path $MiseBin) -and (Test-Path $NuBin)) {
     Write-ClauseLog "Skipping Mise overlay sync (MiseBin or NuBin not found)" -Level WARN
 }
 
+# Install Mise Dependencies
+Write-ClauseLog " Finalizing ClauseOS toolchain installation..." -Level INFO
+& $MiseBin install
+
 # ==============================================================================
 # STAGE 2: NUSHELL HANDOFF (CLI, CI/CD NON-INTERACTIVE, & TTY ROUTING)
 # ==============================================================================
