@@ -1,20 +1,20 @@
-[tools]
-# Core Language Runtimes (Managed directly by Mise)
-erlang = "27.1"
-gleam  = "1.5.1"
-elixir = "1.20.4-otp-29"
+# ==============================================================================
+# CARRIER OS - HERMETIC WORKSPACE TOOLCHAIN MANIFEST
+# ==============================================================================
+# All tools are installed deterministically into .cache/toolchain/
+# and isolated from host-level global installs.
 
 [env]
 # Path Shims Anchor
 _.path      = [
     "{{config_root}}/.local/bin",
-    "{{config_root}}/.local/app/lemonade",
-    "{{config_root}}/.local/app/fastflowlm",
-    "{{config_root}}/.local/app/apm",
-    "{{config_root}}/.local/app/vscode/bin",    
+    "{{config_root}}/.local/apps/lemonade",
+    "{{config_root}}/.local/apps/fastflowlm",
+    "{{config_root}}/.local/apps/apm",
+    "{{config_root}}/.local/apps/vscode/bin",    
 ]
 
-MISE_SHIM_DIR = "{{config_root}}/.local/bin"
+# MISE_SHIM_DIR = "{{config_root}}/.local/bin"
 
 # Root System Profile Anchors
 CLAUSE_PROJECT_ROOT = "{{config_root}}"
@@ -41,3 +41,21 @@ MISE_DATA_DIR   = "{{config_root}}/.cache/toolchain/mise"
 MISE_CONFIG_DIR = "{{config_root}}/.cache/toolchain/mise-config"
 MISE_STATE_DIR  = "{{config_root}}/.cache/toolchain/mise-state"
 MISE_CACHE_DIR  = "{{config_root}}/.cache/toolchain/mise-cache"
+
+[tools]
+# --- 1. BEAM CONCURRENCY & CONTROL PLANE (CARRIER CORE) ---
+erlang = "29.1.2"      # OTP foundation for Carrier & Kazoo telecom routing
+elixir = "1.20.4-otp-29"      # Phoenix, Mix tooling, and AST macro engine
+gleam  = "1.19.2"       # Type-safe control plane, Lustre views, & carrier_core
+
+# --- 2. POLYGLOT SCRIPT RUNTIMES (SCRIPTS/CLI/) ---
+
+# --- 3. INFRASTRUCTURE & ORCHESTRATION ENGINE ---
+
+# --- 4. SYSTEM UTILITIES & TASK RUNNERS ---
+
+[settings]
+# Ensure mise automatically downloads missing tools without prompting
+auto_install = false
+experimental = false
+legacy_version_file = false
