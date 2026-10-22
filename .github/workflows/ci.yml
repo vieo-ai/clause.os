@@ -85,9 +85,9 @@ jobs:
       - name: Test ClauseOS Stage 0 Boot & Assertion Suite (POSIX)
         if: runner.os != 'Windows'
         run: |
-          chmod +x clause.sh
-          CI=true ./clause.sh
-          ./clause.sh test
+          chmod +x cx.sh
+          CI=true ./cx.sh
+          ./cx.sh test
 
       # --- Windows Test & Systems Assertion Suite ---
       - name: Test ClauseOS Stage 0 Boot & Assertion Suite (Windows)
@@ -95,5 +95,5 @@ jobs:
         shell: powershell
         run: |
           $env:CI = "true"
-          .\clause.bat
-          .\clause.bat test
+          .\cx.bat
+          .\cx.bat test
