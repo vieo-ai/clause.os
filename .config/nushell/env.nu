@@ -33,7 +33,7 @@ $env.GH_CONFIG_DIR     = ($clause_root | path join ".config" "gh")
 $env.MISE_DATA_DIR   = ($clause_root | path join ".cache" "toolchain" "mise")
 $env.MISE_CONFIG_DIR = ($clause_root | path join ".cache" "toolchain" "mise-config")
 $env.MISE_STATE_DIR  = ($clause_root | path join ".cache" "toolchain" "mise-state")
-$env.MISE_CACHE_DIR  = ($clause_root | path join ".cache" "m-cache")
+$env.MISE_CACHE_DIR  = ($clause_root | path join ".cache" "toolchain" "mise-cache")
 
 # Enforce .local/bin Prepend
 let local_bin = ($clause_root | path join ".local" "bin")

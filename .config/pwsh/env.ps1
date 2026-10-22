@@ -25,7 +25,7 @@ $env:GH_CONFIG_DIR     = Join-Path $ClauseRoot ".config\gh"
 $env:MISE_DATA_DIR   = Join-Path $ClauseRoot ".cache\toolchain\mise"
 $env:MISE_CONFIG_DIR = Join-Path $ClauseRoot ".cache\toolchain\mise-config"
 $env:MISE_STATE_DIR  = Join-Path $ClauseRoot ".cache\toolchain\mise-state"
-$env:MISE_CACHE_DIR  = Join-Path $ClauseRoot ".cache\m-cache"
+$env:MISE_CACHE_DIR  = Join-Path $ClauseRoot ".cache\toolchain\mise-cache"
 
 # Enforce .local\bin Prepend
 $LocalBin = Join-Path $ClauseRoot ".local\bin"

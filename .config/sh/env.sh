@@ -27,7 +27,7 @@ export GH_CONFIG_DIR="${SCRIPT_DIR}/.config/gh"
 export MISE_DATA_DIR="${SCRIPT_DIR}/.cache/toolchain/mise"
 export MISE_CONFIG_DIR="${SCRIPT_DIR}/.cache/toolchain/mise-config"
 export MISE_STATE_DIR="${SCRIPT_DIR}/.cache/toolchain/mise-state"
-export MISE_CACHE_DIR="${SCRIPT_DIR}/.cache/m-cache"
+export MISE_CACHE_DIR="${SCRIPT_DIR}/.cache/toolchain/mise-cache"
 
 # Enforce .local/bin Prepend
 LOCAL_BIN="${SCRIPT_DIR}/.local/bin"
