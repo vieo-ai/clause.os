@@ -47,6 +47,7 @@ MISE_CACHE_DIR  = "{{config_root}}/.cache/toolchain/mise-cache"
 erlang = "29.1.2"      # OTP foundation for Carrier & Kazoo telecom routing
 elixir = "1.20.4-otp-29"      # Phoenix, Mix tooling, and AST macro engine
 gleam  = "1.19.2"       # Type-safe control plane, Lustre views, & carrier_core
+rebar = "3.27.3"        # Erlang build tool for compiling and managing dependencies
 
 # --- 2. POLYGLOT SCRIPT RUNTIMES (SCRIPTS/CLI/) ---
 
