@@ -25,7 +25,7 @@ $env.APPDATA      = ($clause_root | path join ".local" "appdata")
 $env.LOCALAPPDATA = ($clause_root | path join ".local" "share")
 
 # Application Profile Targets
-$env.GIT_CONFIG_GLOBAL = ($clause_root | path join ".config" "git" "config")
+$env.GIT_CONFIG_GLOBAL = ($clause_root | path join ".gitconfig")
 $env.NU_CONFIG_DIR     = ($clause_root | path join ".config" "nushell")
 $env.GH_CONFIG_DIR     = ($clause_root | path join ".config" "gh")
 

@@ -19,7 +19,7 @@ export APPDATA="${SCRIPT_DIR}/.local/appdata"
 export LOCALAPPDATA="${SCRIPT_DIR}/.local/share"
 
 # Application Profile Targets
-export GIT_CONFIG_GLOBAL="${SCRIPT_DIR}/.config/git/config"
+export GIT_CONFIG_GLOBAL="${SCRIPT_DIR}/.gitconfig"
 export NU_CONFIG_DIR="${SCRIPT_DIR}/.config/nushell"
 export GH_CONFIG_DIR="${SCRIPT_DIR}/.config/gh"
 

@@ -17,7 +17,7 @@ $env:APPDATA      = Join-Path $ClauseRoot ".local\appdata"
 $env:LOCALAPPDATA = Join-Path $ClauseRoot ".local\share"
 
 # Application Profile Targets
-$env:GIT_CONFIG_GLOBAL = Join-Path $ClauseRoot ".config\git\config"
+$env:GIT_CONFIG_GLOBAL = Join-Path $ClauseRoot ".gitconfig"
 $env:NU_CONFIG_DIR     = Join-Path $ClauseRoot ".config\nushell"
 $env:GH_CONFIG_DIR     = Join-Path $ClauseRoot ".config\gh"
 

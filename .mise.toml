@@ -25,7 +25,7 @@ APPDATA      = "{{config_root}}/.local/appdata"
 LOCALAPPDATA = "{{config_root}}/.local/share"
 
 # Application Profile Targets
-GIT_CONFIG_GLOBAL = "{{config_root}}/.config/git/config"
+GIT_CONFIG_GLOBAL = "{{config_root}}/.gitconfig"
 NU_CONFIG_DIR     = "{{config_root}}/.config/nushell"
 GH_CONFIG_DIR     = "{{config_root}}/.config/gh"
 
