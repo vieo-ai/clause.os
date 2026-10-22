@@ -1,3 +1,9 @@
+[tools]
+# Core Language Runtimes (Managed directly by Mise)
+erlang = "27.1"
+gleam  = "1.5.1"
+elixir = "1.20.4-otp-29"
+
 [env]
 # Path Shims Anchor
 _.path      = [
@@ -7,6 +13,7 @@ _.path      = [
     "{{config_root}}/.local/app/apm",
     "{{config_root}}/.local/app/vscode/bin",    
 ]
+
 MISE_SHIM_DIR = "{{config_root}}/.local/bin"
 
 # Root System Profile Anchors
