@@ -67,7 +67,7 @@ if (Test-Path $EnvScript) {
 }
 
 $LocalBin    = Join-Path $ProjectRoot ".local\bin"
-$AppDir      = Join-Path $ProjectRoot ".local\app"
+$AppDir      = Join-Path $ProjectRoot ".local\apps"
 $CacheDir    = Join-Path $ProjectRoot ".cache"
 $TmpDir      = Join-Path $CacheDir "tmp_bootstrap"
 $Manifest    = Join-Path $ProjectRoot ".clause.toml"
