@@ -5,7 +5,7 @@ export def main [] {
     print "  [+] Testing Stage 1: Portable Apps & AI Components..."
 
     let project_root = ($env.CLAUSE_PROJECT_ROOT? | default $env.PWD)
-    let app_dir = ($project_root | path join ".local" "app")
+    let app_dir = ($project_root | path join ".local" "apps")
     let exe_ext = if ($nu.os-info.name == "windows") { ".exe" } else { "" }
 
     # 1. Check Lemonade GPU Engine
