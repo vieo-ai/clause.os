@@ -60,3 +60,4 @@ rebar = "3.27.3"        # Erlang build tool for compiling and managing dependenc
 auto_install = false
 experimental = false
 legacy_version_file = false
+github_attestations = false
