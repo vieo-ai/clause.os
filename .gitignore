@@ -1,8 +1,11 @@
 # Ignore runtime binaries
 *.exe
-.local/
 .cache/
+.config/
+.local/
 .ssh/
+keys
+
 
 # Ignore userhome redirects to clause root
 AppData/
