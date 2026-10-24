@@ -1,0 +1,126 @@
+exit
+mise trust
+mise doctor
+exit
+mise trust
+mise doctor
+clear
+clause banner
+just test
+clear
+clause banner
+exit
+just test
+exit
+cls
+clause banner
+clause test
+exit
+cd ~
+ls
+M:
+M:\
+cd clause.os
+ls
+git mv clause.ps1 boot.ps1
+git mv start.ps1 clause.ps1
+git mv start.bat clause.bat
+git mv start.sh clause.sh
+exit
+mise doctor
+exit
+exit
+mise trust
+mise
+clause test
+clause boot:check
+cx boot:check
+cd packages
+cx
+clause
+cd ..
+exit
+cx
+exit
+cx
+exit
+cx
+carrier
+carrier test
+clause
+clear
+cx banner
+mise ls-remote
+mise ls-remote jet
+clear
+cx banner
+cx sync:jet
+ping 1.1.1.1
+cx sync:jet
+exit
+cx sync:jet
+git pull
+git status
+cx sync:jet
+mise ls-remote elixir
+mise ls
+mise ls-remote erlang
+mise ls-remote gleam
+mise ls
+cx test
+cx boot:check
+clear
+clause banner
+mise doctor
+apm
+mise doctor
+just test
+mise doctor
+apm
+exit
+mise ls
+gleam --version
+mise doctor
+erl
+cx sync:jet
+jet
+mise ls-remote rebar
+exit
+cx sync:jet
+mise ls-remote rebar3
+mise ls-remote rebar
+exit
+cx sync:jet
+rebar3
+rebar
+exit
+cx sync:jet
+jet
+cls
+./packages/carrier_jet/jet
+./packages/carrier_jet/build/erlang-shipment/entrypoint.ps1
+./packages/carrier_jet/build/erlang-shipment/entrypoint.ps1 run
+pwsh
+jet
+exit
+jet
+cx jet
+cx jet run
+carrier jet
+clause jet
+cx jet run
+cx jet run agent_fake_test.jet
+cx jet -r agent_fake_test::run agent_fake_test.jet
+cx jet run agent_fake_test::run agent_fake_test.jet
+cx jet run agent_fake_test::run .\agent_fake_test.jet
+cx jet run agent_fake_test::run example\agent_fake_test.jet
+cx jet run agent_fake_test::run example/agent_fake_test.jet
+cx jet run agent_fake_test::run ./example/agent_fake_test.jet
+exit
+exit
+mise doctor
+exit
+mise install
+rebar
+mise install
+exit
