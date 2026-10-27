@@ -1,12 +1,12 @@
 #!/bin/sh
-# install.sh - Reads .clause.toml, bootstraps pwsh into .local/bin, and hands off to clause.ps1
+# cx.sh - Reads .clause.toml, bootstraps pwsh into .home/.local/bin, and hands off to boot.ps1
 set -e
 
 PROJECT_ROOT="${CLAUSE_PROJECT_ROOT:-$(cd "$(dirname "$0")" && pwd -P)}"
 export CLAUSE_PROJECT_ROOT="$PROJECT_ROOT"
 
-LOCAL_BIN="$PROJECT_ROOT/.local/bin"
-CACHE_DIR="$PROJECT_ROOT/.cache"
+LOCAL_BIN="$PROJECT_ROOT/.home/.local/bin"
+CACHE_DIR="$PROJECT_ROOT/.home/.cache"
 TMP_DIR="$CACHE_DIR/tmp_bootstrap"
 MANIFEST="$PROJECT_ROOT/.clause.toml"
 PWSH_EXE="$LOCAL_BIN/pwsh"
@@ -19,17 +19,15 @@ if [ ! -f "$PWSH_EXE" ]; then
         exit 1
     fi
 
-    # Extract pwsh version from .clause.toml
     PWSH_VER=$(sed -n 's/^[[:space:]]*pwsh[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$MANIFEST" | head -n 1)
     if [ -z "$PWSH_VER" ]; then
         echo "[ClauseOS] Error: Could not parse 'pwsh' version from .clause.toml"
         exit 1
     fi
 
-    # Strip leading 'v' if present
     PWSH_VER=$(echo "$PWSH_VER" | sed 's/^v//')
 
-    echo "[ClauseOS] Seeding PowerShell Core (v${PWSH_VER}) into .local/bin/..."
+    echo "[ClauseOS] Seeding PowerShell Core (v${PWSH_VER}) into .home/.local/bin/..."
     
     OS="$(uname -s)"
     ARCH="$(uname -m)"
