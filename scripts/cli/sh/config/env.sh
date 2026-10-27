@@ -1,37 +1,41 @@
 #!/usr/bin/env sh
-# .config/sh/env.sh - ClauseOS POSIX Shell Subshell Lock
+# scripts/cli/sh/config/env.sh - ClauseOS POSIX Shell Subshell Lock
 
-# Resolve ClauseOS root directory (2 levels up from .config/sh)
-CLAUSE_ROOT="$(cd "$(dirname "${ALIAS_SOURCE:-$0}")/../.." && pwd)"
+if [ -z "$CLAUSE_PROJECT_ROOT" ]; then
+    CLAUSE_ROOT="$(cd "$(dirname "${ALIAS_SOURCE:-$0}")/../../../.." && pwd -P)"
+    export CLAUSE_PROJECT_ROOT="$CLAUSE_ROOT"
+else
+    CLAUSE_ROOT="$CLAUSE_PROJECT_ROOT"
+fi
 
-export CLAUSE_PROJECT_ROOT="$CLAUSE_ROOT"
-export HOME="$CLAUSE_ROOT"
-export USERPROFILE="$CLAUSE_ROOT"
+export CLAUSE_HOME="${CLAUSE_ROOT}/.home"
+export HOME="$CLAUSE_HOME"
+export USERPROFILE="$CLAUSE_HOME"
 
-# XDG Base Directories
-export XDG_CONFIG_HOME="${CLAUSE_ROOT}/.config"
-export XDG_DATA_HOME="${CLAUSE_ROOT}/.local/share"
-export XDG_STATE_HOME="${CLAUSE_ROOT}/.local/state"
-export XDG_CACHE_HOME="${CLAUSE_ROOT}/.cache"
+# XDG Base Directories inside .home
+export XDG_CONFIG_HOME="${CLAUSE_HOME}/.config"
+export XDG_DATA_HOME="${CLAUSE_HOME}/.local/share"
+export XDG_STATE_HOME="${CLAUSE_HOME}/.local/state"
+export XDG_CACHE_HOME="${CLAUSE_HOME}/.cache"
 
-# Windows Compatibility Environment Variables
-export APPDATA="${CLAUSE_ROOT}/.local/appdata"
-export LOCALAPPDATA="${CLAUSE_ROOT}/.local/share"
+export CLAUSE_BIN_DIR="${CLAUSE_HOME}/.local/bin"
+export CLAUSE_APPS_DIR="${CLAUSE_HOME}/.local/apps"
+export CLAUSE_TEMP_DIR="${XDG_CACHE_HOME}/tmp_bootstrap"
+export CLAUSE_LOGS_DIR="${CLAUSE_HOME}/.local/logs"
 
 # Application Profile Targets
-export GIT_CONFIG_GLOBAL="${CLAUSE_ROOT}/.gitconfig"
-export NU_CONFIG_DIR="${CLAUSE_ROOT}/.config/nushell"
-export GH_CONFIG_DIR="${CLAUSE_ROOT}/.config/gh"
+export GIT_CONFIG_GLOBAL="${CLAUSE_HOME}/.gitconfig"
+export GH_CONFIG_DIR="${XDG_CONFIG_HOME}/gh"
+export NU_CONFIG_DIR="${CLAUSE_ROOT}/scripts/cli/nu/config"
 
 # Isolated Toolchain Directories
-export MISE_DATA_DIR="${CLAUSE_ROOT}/.cache/toolchain/mise"
-export MISE_CONFIG_DIR="${CLAUSE_ROOT}/.cache/toolchain/mise-config"
-export MISE_STATE_DIR="${CLAUSE_ROOT}/.cache/toolchain/mise-state"
-export MISE_CACHE_DIR="${CLAUSE_ROOT}/.cache/toolchain/mise-cache"
+export MISE_DATA_DIR="${XDG_DATA_HOME}/mise"
+export MISE_CONFIG_DIR="${XDG_CONFIG_HOME}/mise"
+export MISE_STATE_DIR="${XDG_STATE_HOME}/mise"
+export MISE_CACHE_DIR="${XDG_CACHE_HOME}/mise"
 
-# Enforce .local/bin Prepend
-LOCAL_BIN="${CLAUSE_ROOT}/.local/bin"
+# Enforce CLAUSE_BIN_DIR Prepend Only
 case ":${PATH}:" in
-    *:"${LOCAL_BIN}":*) ;;
-    *) export PATH="${LOCAL_BIN}:${PATH}" ;;
+    *:"${CLAUSE_BIN_DIR}":*) ;;
+    *) export PATH="${CLAUSE_BIN_DIR}:${PATH}" ;;
 esac
