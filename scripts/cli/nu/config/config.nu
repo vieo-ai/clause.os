@@ -1,6 +1,6 @@
-use ($nu.default-config-dir | path join mise.nu)
+# scripts/cli/nu/config/config.nu - ClauseOS Nushell UI & Shell Overlay Config
+use mise.nu
 
-# config/shell/config.nu
 $env.config = {
     show_banner: false
     table: {
