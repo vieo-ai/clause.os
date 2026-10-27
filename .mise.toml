@@ -1,94 +1,21 @@
 # ==============================================================================
 # CARRIER OS - HERMETIC WORKSPACE TOOLCHAIN MANIFEST
 # ==============================================================================
-# All toolchains and runtime data are hermetically isolated within .home/
 
 [env]
-# Base Confinement Anchors
 CLAUSE_PROJECT_ROOT = "{{config_root}}"
 CLAUSE_HOME         = "{{config_root}}/.home"
 HOME                = "{{config_root}}/.home"
 USERPROFILE         = "{{config_root}}/.home"
-
-# Application Profile Targets
 GIT_CONFIG_GLOBAL   = "{{config_root}}/.home/.gitconfig"
 NU_CONFIG_DIR       = "{{config_root}}/scripts/cli/nu/config"
 
-# --- Windows Native Environment ---
-[env._.windows]
-_.path = [
-    "{{config_root}}/.home/AppData/Local/Programs/bin",
-    "{{config_root}}/.home/AppData/Local/Programs/apps/lemonade",
-    "{{config_root}}/.home/AppData/Local/Programs/apps/fastflowlm",
-    "{{config_root}}/.home/AppData/Local/Programs/apps/apm",
-    "{{config_root}}/.home/AppData/Local/Programs/apps/vscode/bin",
-]
-
-LOCALAPPDATA    = "{{config_root}}/.home/AppData/Local"
-APPDATA         = "{{config_root}}/.home/AppData/Roaming"
-GH_CONFIG_DIR   = "{{config_root}}/.home/AppData/Roaming/GitHub CLI"
-
-# Hermetic Mise Runtimes (Windows)
-MISE_DATA_DIR   = "{{config_root}}/.home/AppData/Local/mise"
-MISE_CONFIG_DIR = "{{config_root}}/.home/AppData/Roaming/mise"
-MISE_STATE_DIR  = "{{config_root}}/.home/AppData/Local/mise/state"
-MISE_CACHE_DIR  = "{{config_root}}/.home/AppData/Local/mise/cache"
-
-# --- Linux POSIX Environment ---
-[env._.linux]
-_.path = [
-    "{{config_root}}/.home/.local/bin",
-    "{{config_root}}/.home/.local/apps/lemonade",
-    "{{config_root}}/.home/.local/apps/fastflowlm",
-    "{{config_root}}/.home/.local/apps/apm",
-    "{{config_root}}/.home/.local/apps/vscode/bin",
-]
-
-XDG_CONFIG_HOME = "{{config_root}}/.home/.config"
-XDG_DATA_HOME   = "{{config_root}}/.home/.local/share"
-XDG_STATE_HOME  = "{{config_root}}/.home/.local/state"
-XDG_CACHE_HOME  = "{{config_root}}/.home/.cache"
-GH_CONFIG_DIR   = "{{config_root}}/.home/.config/gh"
-
-# Hermetic Mise Runtimes (Linux)
-MISE_DATA_DIR   = "{{config_root}}/.home/.local/share/mise"
-MISE_CONFIG_DIR = "{{config_root}}/.home/.config/mise"
-MISE_STATE_DIR  = "{{config_root}}/.home/.local/state/mise"
-MISE_CACHE_DIR  = "{{config_root}}/.home/.cache/mise"
-
-# --- macOS POSIX Environment ---
-[env._.macos]
-_.path = [
-    "{{config_root}}/.home/.local/bin",
-    "{{config_root}}/.home/.local/apps/lemonade",
-    "{{config_root}}/.home/.local/apps/apm",
-    "{{config_root}}/.home/.local/apps/vscode/bin",
-]
-
-XDG_CONFIG_HOME = "{{config_root}}/.home/.config"
-XDG_DATA_HOME   = "{{config_root}}/.home/.local/share"
-XDG_STATE_HOME  = "{{config_root}}/.home/.local/state"
-XDG_CACHE_HOME  = "{{config_root}}/.home/.cache"
-GH_CONFIG_DIR   = "{{config_root}}/.home/.config/gh"
-
-# Hermetic Mise Runtimes (macOS)
-MISE_DATA_DIR   = "{{config_root}}/.home/.local/share/mise"
-MISE_CONFIG_DIR = "{{config_root}}/.home/.config/mise"
-MISE_STATE_DIR  = "{{config_root}}/.home/.local/state/mise"
-MISE_CACHE_DIR  = "{{config_root}}/.home/.cache/mise"
-
 [tools]
 # --- 1. BEAM CONCURRENCY & CONTROL PLANE (CARRIER CORE) ---
-erlang = "29.1.2"          # OTP foundation for Carrier & Kazoo telecom routing
-elixir = "1.20.4-otp-29"   # Phoenix, Mix tooling, and AST macro engine
-gleam  = "1.19.2"          # Type-safe control plane, Lustre views, & carrier_core
-rebar  = "3.27.3"          # Erlang build tool for compiling and managing dependencies
-
-# --- 2. POLYGLOT SCRIPT RUNTIMES (SCRIPTS/CLI/) ---
-
-# --- 3. INFRASTRUCTURE & ORCHESTRATION ENGINE ---
-
-# --- 4. SYSTEM UTILITIES & TASK RUNNERS ---
+erlang = "29.1.2"
+elixir = "1.20.4-otp-29"
+gleam  = "1.19.2"
+rebar  = "3.27.3"
 
 [settings]
 auto_install = false
