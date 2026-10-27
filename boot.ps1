@@ -1,11 +1,20 @@
 # boot.ps1 - Cross-Platform Stage 0 Microkernel & Confined Profile Bootloader
 $ErrorActionPreference = 'Stop'
 
+# ==============================================================================
+# RESOLVE ROOT & LOAD CANONICAL ENVIRONMENT
+# ==============================================================================
 $ProjectRoot = if ($env:CLAUSE_PROJECT_ROOT) { $env:CLAUSE_PROJECT_ROOT } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
+$env:CLAUSE_PROJECT_ROOT = $ProjectRoot
 
-# ==============================================================================
-# OS & PLATFORM DETECTION
-# ==============================================================================
+# Ingest the Single Source of Truth
+$EnvScript = Join-Path $ProjectRoot "scripts\cli\pwsh\config\env.ps1"
+if (-not (Test-Path $EnvScript)) {
+    throw "[ClauseOS] Critical: Canonical environment file missing at $EnvScript"
+}
+. $EnvScript
+
+# Detect OS flags
 $IsOSWindows = $IsWindows -or $env:OS -eq "Windows_NT"
 $IsOSMac     = $IsMacOS -or ($PSVersionTable.OS -like "*Darwin*")
 $IsOSLinux   = -not $IsOSWindows -and -not $IsOSMac
@@ -13,7 +22,7 @@ $IsOSLinux   = -not $IsOSWindows -and -not $IsOSMac
 # ==============================================================================
 # LOGGING SYSTEM INITIALIZATION
 # ==============================================================================
-$LogDir  = Join-Path $ProjectRoot ".local\logs"
+$LogDir  = $env:CLAUSE_LOGS_DIR
 $LogFile = Join-Path $LogDir "bootstrap.log"
 
 if (-not (Test-Path $LogDir)) {
@@ -45,33 +54,16 @@ function Write-ClauseLog {
 }
 
 Write-ClauseLog "Initializing ClauseOS Microkernel Bootloader..." -Level INFO
-Write-ClauseLog "Context: Root=$ProjectRoot | OS(Windows=$IsOSWindows, Linux=$IsOSLinux, Mac=$IsOSMac)" -Level DEBUG
+Write-ClauseLog "Context: Root=$ProjectRoot | Home=$env:CLAUSE_HOME | OS(Windows=$IsOSWindows, Linux=$IsOSLinux, Mac=$IsOSMac)" -Level DEBUG
 
 # ==============================================================================
-# PRE-BOOT ENVIRONMENT LOCKING & ATTRIBUTE CLEANUP
+# TARGET DIRECTORY PROVISIONING
 # ==============================================================================
-if ($IsOSWindows) {
-    $env:APPDATA      = Join-Path $ProjectRoot ".local\appdata"
-    $env:LOCALAPPDATA = Join-Path $ProjectRoot ".local\share"
-    Write-ClauseLog "Applied Windows AppData profile overrides" -Level DEBUG
-}
-
-$EnvScript = Join-Path $ProjectRoot ".config\pwsh\env.ps1"
-if (Test-Path $EnvScript) {
-    try {
-        . $EnvScript
-        Write-ClauseLog "Loaded PowerShell environment script: $EnvScript" -Level DEBUG
-    } catch {
-        Write-ClauseLog "Failed to execute environment script '$EnvScript': $_" -Level WARN
-    }
-}
-
-$LocalBin    = Join-Path $ProjectRoot ".local\bin"
-$AppDir      = Join-Path $ProjectRoot ".local\apps"
-$CacheDir    = Join-Path $ProjectRoot ".cache"
-$TmpDir      = Join-Path $CacheDir "tmp_bootstrap"
+$LocalBin    = $env:CLAUSE_BIN_DIR
+$AppDir      = $env:CLAUSE_APPS_DIR
+$TmpDir      = $env:CLAUSE_TEMP_DIR
 $Manifest    = Join-Path $ProjectRoot ".clause.toml"
-$NuConfigDir = Join-Path $ProjectRoot ".config\nushell"
+$NuConfigDir = $env:NU_CONFIG_DIR
 
 # Target Application Directories
 $InferenceGpuDir = Join-Path $AppDir "lemonade"
@@ -130,7 +122,6 @@ function Expand-HermeticArchive([string]$ArchivePath, [string]$DestinationPath) 
                 Expand-Archive -Path $ArchivePath -DestinationPath $DestinationPath -Force
             }
         } else {
-            # POSIX (Linux / macOS / WSL2): Force native Linux/macOS tar to prevent Windows tar.exe leak
             $NativeTar = if (Test-Path "/usr/bin/tar") { "/usr/bin/tar" } elseif (Test-Path "/bin/tar") { "/bin/tar" } else { "tar" }
             & $NativeTar -xf "$ArchivePath" -C "$DestinationPath"
             if ($LASTEXITCODE -ne 0) { throw "$NativeTar failed with code $LASTEXITCODE" }
@@ -142,7 +133,6 @@ function Expand-HermeticArchive([string]$ArchivePath, [string]$DestinationPath) 
 }
 
 function Install-ExtractedArchive([string]$ExtractTarget, [string]$DestinationPath) {
-    # Guard: Ensure ExtractTarget is explicitly within $TmpDir to protect project root
     if (-not $ExtractTarget.StartsWith($TmpDir)) {
         Write-ClauseLog "Extraction target $ExtractTarget is outside $TmpDir" -Level FATAL
         throw "[ClauseOS] Critical Error: Extraction target $ExtractTarget is outside $TmpDir"
@@ -209,22 +199,21 @@ $FastFlowTag   = if ($FastFlowVer.StartsWith("v")) { $FastFlowVer } else { "v$Fa
 $FastFlowClean = $FastFlowTag.TrimStart("v")
 $ApmTag        = if ($ApmVer.StartsWith("v")) { $ApmVer } else { "v$ApmVer" }
 
-# Provision Directories
+# Provision System Directories
 @($LocalBin, $AppDir, $TmpDir, $InferenceGpuDir, $InferenceNpuDir, $ApmDir, $CodeDir, $NuConfigDir) | ForEach-Object {
     if (-not (Test-Path $_)) { New-Item -ItemType Directory -Force -Path $_ | Out-Null }
 }
 
-# Target Executable Names
 $ExeExt = if ($IsOSWindows) { ".exe" } else { "" }
 
 # ==============================================================================
 # STAGE 0: CORE SYSTEM ENGINE SEEDING
 # ==============================================================================
 
-# 1. Mise Engine -> .local/bin/ (with POSIX man/share routing)
+# 1. Mise Engine
 $MiseBin = Join-Path $LocalBin "mise$ExeExt"
 if (-not (Test-Path $MiseBin)) {
-    Write-ClauseLog "Pre-seeding Mise (v${MiseVer}) into .local/bin/..." -Level INFO
+    Write-ClauseLog "Pre-seeding Mise (v${MiseVer}) into $LocalBin..." -Level INFO
     $MiseAsset = if ($IsOSWindows) { "mise-v${MiseVer}-windows-x64.zip" } elseif ($IsOSMac) { "mise-v${MiseVer}-macos-x64.tar.gz" } else { "mise-v${MiseVer}-linux-x64.tar.gz" }
     $ArchivePath = Join-Path $TmpDir $MiseAsset
     Get-File -Url "https://github.com/jdx/mise/releases/download/v${MiseVer}/$MiseAsset" -OutFile $ArchivePath
@@ -232,20 +221,17 @@ if (-not (Test-Path $MiseBin)) {
     $ExtractTarget = Join-Path $TmpDir "mise_out"
     Expand-HermeticArchive -ArchivePath $ArchivePath -DestinationPath $ExtractTarget
 
-    # Locate the executable file strictly within the extraction output
     $FoundMiseExe = Get-ChildItem -Path $ExtractTarget -Filter "mise$ExeExt" -Recurse | Where-Object { -not $_.PSIsContainer } | Select-Object -First 1
 
     if ($FoundMiseExe) {
-        # Move all files in the bin folder (mise, mise-shim.exe, mise-shims, etc.) directly to .local/bin/
         Get-ChildItem -Path $FoundMiseExe.DirectoryName | Move-Item -Destination $LocalBin -Force
         Set-PosixExecutable -FilePath $MiseBin
 
-        # POSIX (Linux/macOS): Route sibling folders (man, share) into .local/man/ and .local/share/
         if (-not $IsOSWindows) {
             $MiseParent = $FoundMiseExe.Directory.Parent
             if ($MiseParent -and (Test-Path $MiseParent.FullName) -and ($MiseParent.FullName -ne $ExtractTarget)) {
                 Get-ChildItem -Path $MiseParent.FullName | Where-Object { $_.Name -ne "bin" } | ForEach-Object {
-                    $DestDir = Join-Path $ProjectRoot ".local/$($_.Name)"
+                    $DestDir = Join-Path $env:CLAUSE_HOME ".local/$($_.Name)"
                     if (-not (Test-Path $DestDir)) { New-Item -ItemType Directory -Force -Path $DestDir | Out-Null }
                     Get-ChildItem -Path $_.FullName | Move-Item -Destination $DestDir -Force
                 }
@@ -257,10 +243,10 @@ if (-not (Test-Path $MiseBin)) {
     }
 }
 
-# 2. Just Task Scheduler -> .local/bin/
+# 2. Just Task Scheduler
 $JustBin = Join-Path $LocalBin "just$ExeExt"
 if (-not (Test-Path $JustBin)) {
-    Write-ClauseLog "Pre-seeding Just (v${JustVer}) into .local/bin/..." -Level INFO
+    Write-ClauseLog "Pre-seeding Just (v${JustVer}) into $LocalBin..." -Level INFO
     $JustAsset = if ($IsOSWindows) { "just-${JustVer}-x86_64-pc-windows-msvc.zip" } elseif ($IsOSMac) { "just-${JustVer}-x86_64-apple-darwin.tar.gz" } else { "just-${JustVer}-x86_64-unknown-linux-musl.tar.gz" }
     $ArchivePath = Join-Path $TmpDir $JustAsset
     Get-File -Url "https://github.com/casey/just/releases/download/${JustVer}/$JustAsset" -OutFile $ArchivePath
@@ -271,10 +257,10 @@ if (-not (Test-Path $JustBin)) {
     Set-PosixExecutable -FilePath $JustBin
 }
 
-# 3. Nushell Shell Engine -> .local/bin/
+# 3. Nushell Shell Engine
 $NuBin = Join-Path $LocalBin "nu$ExeExt"
 if (-not (Test-Path $NuBin)) {
-    Write-ClauseLog "Pre-seeding Nushell (v${NuVer}) into .local/bin/..." -Level INFO
+    Write-ClauseLog "Pre-seeding Nushell (v${NuVer}) into $LocalBin..." -Level INFO
     $NuAsset = if ($IsOSWindows) { "nu-${NuVer}-x86_64-pc-windows-msvc.zip" } elseif ($IsOSMac) { "nu-${NuVer}-x86_64-apple-darwin.tar.gz" } else { "nu-${NuVer}-x86_64-unknown-linux-gnu.tar.gz" }
     $ArchivePath = Join-Path $TmpDir $NuAsset
     Get-File -Url "https://github.com/nushell/nushell/releases/download/${NuVer}/$NuAsset" -OutFile $ArchivePath
@@ -289,7 +275,7 @@ if (-not (Test-Path $NuBin)) {
 # STAGE 1: PORTABLE APPS & AI COMPONENT SEEDING
 # ==============================================================================
 
-# 4. Lemonade GPU Engine -> .local/app/lemonade/
+# 4. Lemonade GPU Engine
 $LemonadeCheck = Get-ChildItem -Path $InferenceGpuDir -ErrorAction SilentlyContinue
 if (-not $LemonadeCheck) {
     Write-ClauseLog "Seeding Lemonade GPU Engine (${LemonadeTag})..." -Level INFO
@@ -302,7 +288,7 @@ if (-not $LemonadeCheck) {
     Install-ExtractedArchive -ExtractTarget $ExtractTarget -DestinationPath $InferenceGpuDir
 }
 
-# 5. FastFlowLM NPU Engine -> .local/app/fastflowlm/ (Linux & Windows)
+# 5. FastFlowLM NPU Engine
 if (-not $IsOSMac) {
     $FastFlowCheck = Get-ChildItem -Path $InferenceNpuDir -ErrorAction SilentlyContinue
     if (-not $FastFlowCheck) {
@@ -317,7 +303,7 @@ if (-not $IsOSMac) {
     }
 }
 
-# 6. APM (Agent Package Manager) -> .local/app/apm/
+# 6. APM (Agent Package Manager)
 $ApmBin = Join-Path $ApmDir "apm$ExeExt"
 if (-not (Test-Path $ApmBin)) {
     Write-ClauseLog "Seeding Agent Package Manager (${ApmTag})..." -Level INFO
@@ -331,12 +317,12 @@ if (-not (Test-Path $ApmBin)) {
     Set-PosixExecutable -FilePath $ApmBin
 }
 
-# 7. VS Code Portable -> .local/app/vscode/
+# 7. VS Code Portable
 $CodeCheck = Get-ChildItem -Path $CodeDir -ErrorAction SilentlyContinue
 if (-not $CodeCheck) {
     Write-ClauseLog "Seeding VS Code Portable Engine (v${VsCodeVer})..." -Level INFO
     $CodeAsset = if ($IsOSWindows) { "vscode-win32-x64-${VsCodeVer}.zip" } elseif ($IsOSMac) { "VSCode-darwin-universal.zip" } else { "vscode-linux-x64-${VsCodeVer}.tar.gz" }
-    $CodeUrl = if ($IsOSWindows) { "https://update.code.visualstudio.com/${VsCodeVer}/win32-x64-archive/stable" } elseif ($IsOSMac) { "https://update.code.visualstudio.com/${VsCodeVer}/darwin-universal/stable" } else { "https://update.code.visualstudio.com/${VsCodeVer}/linux-x64/stable" }
+    $CodeUrl   = if ($IsOSWindows) { "https://update.code.visualstudio.com/${VsCodeVer}/win32-x64-archive/stable" } elseif ($IsOSMac) { "https://update.code.visualstudio.com/${VsCodeVer}/darwin-universal/stable" } else { "https://update.code.visualstudio.com/${VsCodeVer}/linux-x64/stable" }
     
     $ArchivePath = Join-Path $TmpDir $CodeAsset
     Get-File -Url $CodeUrl -OutFile $ArchivePath
@@ -353,25 +339,15 @@ if (Test-Path $TmpDir) {
     Remove-Item -Path $TmpDir -Recurse -Force -ErrorAction SilentlyContinue
 }
 
-# ---------------------------------------------------------------------------
-# WINDOWS PROFILE CLEANUP (GRACEFULLY SKIPPED ON POSIX)
-# ---------------------------------------------------------------------------
+# Windows Profile Attribute Protection
 if ($IsOSWindows) {
     if (Get-Command attrib.exe -ErrorAction SilentlyContinue) {
-        $ProfileTargets = @("AppData", "Microsoft")
-        foreach ($Target in $ProfileTargets) {
-            $FullPath = Join-Path $ProjectRoot $Target
-            if (Test-Path $FullPath) { attrib.exe +h "$FullPath" 2>$null }
-        }
-
-        Get-ChildItem -Path $ProjectRoot -Force -ErrorAction SilentlyContinue | Where-Object { $_.Name.StartsWith(".") } | ForEach-Object {
-            attrib.exe +h "$($_.FullName)" 2>$null
-        }
+        attrib.exe +h "$($env:CLAUSE_HOME)" 2>$null
     }
 }
 
 # ==============================================================================
-# GENERATE NUSHELL MISE ACTIVATION OVERLAY (NATIVE NUSHELL EXECUTION)
+# GENERATE NUSHELL MISE ACTIVATION OVERLAY
 # ==============================================================================
 $MiseBin = Join-Path $LocalBin "mise$ExeExt"
 $NuBin   = Join-Path $LocalBin "nu$ExeExt"
@@ -384,12 +360,10 @@ if ((Test-Path $MiseBin) -and (Test-Path $NuBin)) {
     } catch {
         Write-ClauseLog "Failed to sync Mise overlay with Nushell: $_" -Level ERROR
     }
-} else {
-    Write-ClauseLog "Skipping Mise overlay sync (MiseBin or NuBin not found)" -Level WARN
 }
 
-# Install Mise Dependencies
-Write-ClauseLog " Finalizing ClauseOS toolchain installation..." -Level INFO
+# Install Mise Dependencies (Userland Tools)
+Write-ClauseLog "Finalizing ClauseOS toolchain installation..." -Level INFO
 & $MiseBin install
 
 # ==============================================================================
