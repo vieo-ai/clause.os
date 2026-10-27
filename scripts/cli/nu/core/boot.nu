@@ -1,19 +1,7 @@
 # scripts/cli/nu/core/boot.nu
-# Stage 1 Environment Setup & Boot Dispatcher for ClauseOS
+# Stage 1 Environment Setup & Command Router for ClauseOS
 
-# 1. Resolve Project Root (4 levels up from scripts/cli/nu/core/boot.nu)
-let current_dir = ($env.FILE_PWD? | default $env.PWD)
-let resolved_root = ($current_dir | path join ".." ".." ".." | path expand)
-
-$env.CLAUSE_PROJECT_ROOT = ($env.CLAUSE_PROJECT_ROOT? | default $resolved_root)
-
-# 2. Source Base Environment Config from .config/nushell/env.nu
-const shell_env = "../../../../.config/nushell/env.nu"
-if ($shell_env | path exists) {
-    source $shell_env
-}
-
-# 3. Resolve Compiled Jet Shipment Entrypoint
+# 1. Resolve Compiled Jet Shipment Entrypoint
 def get-jet-entrypoint [] {
     let project_root = $env.CLAUSE_PROJECT_ROOT
     let shipment_dir = ($project_root | path join "packages" "carrier_jet" "build" "erlang-shipment")
@@ -29,8 +17,8 @@ def get-jet-entrypoint [] {
     }
 }
 
-# 4. Global CLI Router Function ('clause' command)
-def --env clause [cmd: string = "", ...args: string] {
+# 2. Global CLI Router Function ('clause' command)
+export def --env clause [cmd: string = "", ...args: string] {
     let project_root = $env.CLAUSE_PROJECT_ROOT
     let mod_nu = ($project_root | path join "scripts" "cli" "nu" "mod.nu")
     let nu_bin = $nu.current-exe
@@ -54,11 +42,11 @@ def --env clause [cmd: string = "", ...args: string] {
     }
 }
 
-# 5. Interactive Prompt Setup
+# 3. Interactive Prompt Setup
 $env.PROMPT_COMMAND = {||
     let relative_pwd = ($env.PWD | str replace $env.CLAUSE_PROJECT_ROOT ".")
     $"(ansi cyan)[ClauseOS](ansi reset) (ansi yellow)($relative_pwd)(ansi reset) > "
 }
 
-alias carrier = clause
-alias cx = clause
+export alias carrier = clause
+export alias cx = clause
