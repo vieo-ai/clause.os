@@ -199,7 +199,8 @@ $InstallerPipeline = @(
     @{ Name = "Lemonade";   Key = "lemonade";   Script = "installer_lemonade.ps1" },
     @{ Name = "FastFlowLM"; Key = "fastflowlm"; Script = "installer_fastflowlm.ps1"; Skip = $IsOSMac },
     @{ Name = "APM";        Key = "apm";        Script = "installer_apm.ps1" },
-    @{ Name = "VSCode";     Key = "vscode";     Script = "installer_vscode.ps1" }
+    @{ Name = "VSCode";     Key = "vscode";     Script = "installer_vscode.ps1" },
+    @{ Name = "Pulumi";     Key = "pulumi";     Script = "installer_pulumi.ps1" }
 )
 
 foreach ($Tool in $InstallerPipeline) {
