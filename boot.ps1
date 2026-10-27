@@ -26,8 +26,8 @@ if ($IsOSWindows) {
     }
 }
 
-$IsOSMac     = $IsMacOS -or ($PSVersionTable.OS -like "*Darwin*")
-$IsOSLinux   = -not $IsOSWindows -and -not $IsOSMac
+$IsOSMac   = $IsMacOS -or ($PSVersionTable.OS -like "*Darwin*")
+$IsOSLinux = -not $IsOSWindows -and -not $IsOSMac
 
 # ==============================================================================
 # LOGGING SYSTEM INITIALIZATION
@@ -74,12 +74,6 @@ $AppDir      = $env:CLAUSE_APPS_DIR
 $TmpDir      = $env:CLAUSE_TEMP_DIR
 $Manifest    = Join-Path $ProjectRoot ".clause.toml"
 $NuConfigDir = $env:NU_CONFIG_DIR
-
-# Target Application Directories
-$InferenceGpuDir = Join-Path $AppDir "lemonade"
-$InferenceNpuDir = Join-Path $AppDir "fastflowlm"
-$ApmDir          = Join-Path $AppDir "apm"
-$CodeDir         = Join-Path $AppDir "vscode"
 
 if (-not (Test-Path $Manifest)) {
     Write-ClauseLog "Manifest file missing at path: $Manifest" -Level FATAL
@@ -188,159 +182,43 @@ try {
     throw $_
 }
 
-# Manifest Versions
-$MiseVer     = Get-TomlValue -Content $TomlContent -Key "mise"
-$JustVer     = Get-TomlValue -Content $TomlContent -Key "just"
-$NuVer       = Get-TomlValue -Content $TomlContent -Key "nu"
-$LemonadeVer = Get-TomlValue -Content $TomlContent -Key "lemonade"
-$FastFlowVer = Get-TomlValue -Content $TomlContent -Key "fastflowlm"
-$ApmVer      = Get-TomlValue -Content $TomlContent -Key "apm"
-$VsCodeVer   = Get-TomlValue -Content $TomlContent -Key "vscode"
-
-if (-not $MiseVer -or -not $JustVer -or -not $NuVer -or -not $LemonadeVer -or -not $FastFlowVer -or -not $ApmVer -or -not $VsCodeVer) {
-    Write-ClauseLog "Incomplete version metadata in .clause.toml" -Level FATAL
-    throw "[ClauseOS] Error: Missing required version definitions in .clause.toml"
-}
-
-# Version Sanitizers
-$LemonadeTag   = if ($LemonadeVer.StartsWith("v")) { $LemonadeVer } else { "v$LemonadeVer" }
-$LemonadeClean = $LemonadeTag.TrimStart("v")
-$FastFlowTag   = if ($FastFlowVer.StartsWith("v")) { $FastFlowVer } else { "v$FastFlowVer" }
-$FastFlowClean = $FastFlowTag.TrimStart("v")
-$ApmTag        = if ($ApmVer.StartsWith("v")) { $ApmVer } else { "v$ApmVer" }
-
-# Provision System Directories
-@($LocalBin, $AppDir, $TmpDir, $InferenceGpuDir, $InferenceNpuDir, $ApmDir, $CodeDir, $NuConfigDir) | ForEach-Object {
+# Provision Core System Directories
+@($LocalBin, $AppDir, $TmpDir, $NuConfigDir) | ForEach-Object {
     if (-not (Test-Path $_)) { New-Item -ItemType Directory -Force -Path $_ | Out-Null }
 }
 
-$ExeExt = if ($IsOSWindows) { ".exe" } else { "" }
-
 # ==============================================================================
-# STAGE 0: CORE SYSTEM ENGINE SEEDING
+# MODULAR RECIPE EXECUTION (STAGE 0 & STAGE 1)
 # ==============================================================================
+$InstallerDir = Join-Path $ProjectRoot "scripts/cli/pwsh/installers"
 
-# 1. Mise Engine
-$MiseBin = Join-Path $LocalBin "mise$ExeExt"
-if (-not (Test-Path $MiseBin)) {
-    Write-ClauseLog "Pre-seeding Mise (v${MiseVer}) into $LocalBin..." -Level INFO
-    $MiseAsset = if ($IsOSWindows) { "mise-v${MiseVer}-windows-x64.zip" } elseif ($IsOSMac) { "mise-v${MiseVer}-macos-x64.tar.gz" } else { "mise-v${MiseVer}-linux-x64.tar.gz" }
-    $ArchivePath = Join-Path $TmpDir $MiseAsset
-    Get-File -Url "https://github.com/jdx/mise/releases/download/v${MiseVer}/$MiseAsset" -OutFile $ArchivePath
-    
-    $ExtractTarget = Join-Path $TmpDir "mise_out"
-    Expand-HermeticArchive -ArchivePath $ArchivePath -DestinationPath $ExtractTarget
+$InstallerPipeline = @(
+    @{ Name = "Mise";       Key = "mise";       Script = "installer_mise.ps1" },
+    @{ Name = "Just";       Key = "just";       Script = "installer_just.ps1" },
+    @{ Name = "Nushell";    Key = "nu";         Script = "installer_nu.ps1" },
+    @{ Name = "Lemonade";   Key = "lemonade";   Script = "installer_lemonade.ps1" },
+    @{ Name = "FastFlowLM"; Key = "fastflowlm"; Script = "installer_fastflowlm.ps1"; Skip = $IsOSMac },
+    @{ Name = "APM";        Key = "apm";        Script = "installer_apm.ps1" },
+    @{ Name = "VSCode";     Key = "vscode";     Script = "installer_vscode.ps1" }
+)
 
-    $FoundMiseExe = Get-ChildItem -Path $ExtractTarget -Filter "mise$ExeExt" -Recurse | Where-Object { -not $_.PSIsContainer } | Select-Object -First 1
+foreach ($Tool in $InstallerPipeline) {
+    if ($Tool.Skip) { continue }
 
-    if ($FoundMiseExe) {
-        Get-ChildItem -Path $FoundMiseExe.DirectoryName | Move-Item -Destination $LocalBin -Force
-        Set-PosixExecutable -FilePath $MiseBin
-
-        if (-not $IsOSWindows) {
-            $MiseParent = $FoundMiseExe.Directory.Parent
-            if ($MiseParent -and (Test-Path $MiseParent.FullName) -and ($MiseParent.FullName -ne $ExtractTarget)) {
-                Get-ChildItem -Path $MiseParent.FullName | Where-Object { $_.Name -ne "bin" } | ForEach-Object {
-                    $DestDir = Join-Path $env:CLAUSE_HOME ".local/$($_.Name)"
-                    if (-not (Test-Path $DestDir)) { New-Item -ItemType Directory -Force -Path $DestDir | Out-Null }
-                    Get-ChildItem -Path $_.FullName | Move-Item -Destination $DestDir -Force
-                }
-            }
-        }
-    } else {
-        Write-ClauseLog "Mise executable ($MiseBin) could not be located in extracted archive" -Level ERROR
-        throw "[ClauseOS ERROR] Mise binary missing in $ExtractTarget"
+    $Version = Get-TomlValue -Content $TomlContent -Key $Tool.Key
+    if (-not $Version) {
+        Write-ClauseLog "Missing required version definition for '$($Tool.Key)' in .clause.toml" -Level FATAL
+        throw "[ClauseOS] Error: Missing required version definition for '$($Tool.Key)' in .clause.toml"
     }
-}
 
-# 2. Just Task Scheduler
-$JustBin = Join-Path $LocalBin "just$ExeExt"
-if (-not (Test-Path $JustBin)) {
-    Write-ClauseLog "Pre-seeding Just (v${JustVer}) into $LocalBin..." -Level INFO
-    $JustAsset = if ($IsOSWindows) { "just-${JustVer}-x86_64-pc-windows-msvc.zip" } elseif ($IsOSMac) { "just-${JustVer}-x86_64-apple-darwin.tar.gz" } else { "just-${JustVer}-x86_64-unknown-linux-musl.tar.gz" }
-    $ArchivePath = Join-Path $TmpDir $JustAsset
-    Get-File -Url "https://github.com/casey/just/releases/download/${JustVer}/$JustAsset" -OutFile $ArchivePath
-    
-    $ExtractTarget = Join-Path $TmpDir "just_out"
-    Expand-HermeticArchive -ArchivePath $ArchivePath -DestinationPath $ExtractTarget
-    Install-ExtractedArchive -ExtractTarget $ExtractTarget -DestinationPath $LocalBin
-    Set-PosixExecutable -FilePath $JustBin
-}
-
-# 3. Nushell Shell Engine
-$NuBin = Join-Path $LocalBin "nu$ExeExt"
-if (-not (Test-Path $NuBin)) {
-    Write-ClauseLog "Pre-seeding Nushell (v${NuVer}) into $LocalBin..." -Level INFO
-    $NuAsset = if ($IsOSWindows) { "nu-${NuVer}-x86_64-pc-windows-msvc.zip" } elseif ($IsOSMac) { "nu-${NuVer}-x86_64-apple-darwin.tar.gz" } else { "nu-${NuVer}-x86_64-unknown-linux-gnu.tar.gz" }
-    $ArchivePath = Join-Path $TmpDir $NuAsset
-    Get-File -Url "https://github.com/nushell/nushell/releases/download/${NuVer}/$NuAsset" -OutFile $ArchivePath
-    
-    $ExtractTarget = Join-Path $TmpDir "nu_out"
-    Expand-HermeticArchive -ArchivePath $ArchivePath -DestinationPath $ExtractTarget
-    Install-ExtractedArchive -ExtractTarget $ExtractTarget -DestinationPath $LocalBin
-    Set-PosixExecutable -FilePath $NuBin
-}
-
-# ==============================================================================
-# STAGE 1: PORTABLE APPS & AI COMPONENT SEEDING
-# ==============================================================================
-
-# 4. Lemonade GPU Engine
-$LemonadeCheck = Get-ChildItem -Path $InferenceGpuDir -ErrorAction SilentlyContinue
-if (-not $LemonadeCheck) {
-    Write-ClauseLog "Seeding Lemonade GPU Engine (${LemonadeTag})..." -Level INFO
-    $LemonadeAsset = if ($IsOSWindows) { "lemonade-embeddable-${LemonadeClean}-windows-x64.zip" } elseif ($IsOSMac) { "lemonade-embeddable-${LemonadeClean}-macos-arm64.tar.gz" } else { "lemonade-embeddable-${LemonadeClean}-ubuntu-x64.tar.gz" }
-    $ArchivePath = Join-Path $TmpDir $LemonadeAsset
-    Get-File -Url "https://github.com/lemonade-sdk/lemonade/releases/download/${LemonadeTag}/${LemonadeAsset}" -OutFile $ArchivePath
-    
-    $ExtractTarget = Join-Path $TmpDir "lemonade_out"
-    Expand-HermeticArchive -ArchivePath $ArchivePath -DestinationPath $ExtractTarget
-    Install-ExtractedArchive -ExtractTarget $ExtractTarget -DestinationPath $InferenceGpuDir
-}
-
-# 5. FastFlowLM NPU Engine
-if (-not $IsOSMac) {
-    $FastFlowCheck = Get-ChildItem -Path $InferenceNpuDir -ErrorAction SilentlyContinue
-    if (-not $FastFlowCheck) {
-        Write-ClauseLog "Seeding FastFlowLM NPU Engine (${FastFlowTag})..." -Level INFO
-        $FastFlowAsset = if ($IsOSWindows) { "fastflowlm_${FastFlowClean}_windows_amd64.zip" } else { "fastflowlm_${FastFlowClean}_linux.tar.gz" }
-        $ArchivePath = Join-Path $TmpDir $FastFlowAsset
-        Get-File -Url "https://github.com/ROCm/FastFlowLM/releases/download/${FastFlowTag}/${FastFlowAsset}" -OutFile $ArchivePath
-        
-        $ExtractTarget = Join-Path $TmpDir "fastflow_out"
-        Expand-HermeticArchive -ArchivePath $ArchivePath -DestinationPath $ExtractTarget
-        Install-ExtractedArchive -ExtractTarget $ExtractTarget -DestinationPath $InferenceNpuDir
+    $ScriptPath = Join-Path $InstallerDir $Tool.Script
+    if (-not (Test-Path $ScriptPath)) {
+        Write-ClauseLog "Installer recipe missing at: $ScriptPath" -Level FATAL
+        throw "[ClauseOS] Error: Installer recipe not found at $ScriptPath"
     }
-}
 
-# 6. APM (Agent Package Manager)
-$ApmBin = Join-Path $ApmDir "apm$ExeExt"
-if (-not (Test-Path $ApmBin)) {
-    Write-ClauseLog "Seeding Agent Package Manager (${ApmTag})..." -Level INFO
-    $ApmAsset = if ($IsOSWindows) { "apm-windows-x86_64.zip" } elseif ($IsOSMac) { "apm-darwin-x86_64.tar.gz" } else { "apm-linux-x86_64.tar.gz" }
-    $ArchivePath = Join-Path $TmpDir $ApmAsset
-    Get-File -Url "https://github.com/microsoft/apm/releases/download/${ApmTag}/${ApmAsset}" -OutFile $ArchivePath
-    
-    $ExtractTarget = Join-Path $TmpDir "apm_out"
-    Expand-HermeticArchive -ArchivePath $ArchivePath -DestinationPath $ExtractTarget
-    Install-ExtractedArchive -ExtractTarget $ExtractTarget -DestinationPath $ApmDir
-    Set-PosixExecutable -FilePath $ApmBin
-}
-
-# 7. VS Code Portable
-$CodeCheck = Get-ChildItem -Path $CodeDir -ErrorAction SilentlyContinue
-if (-not $CodeCheck) {
-    Write-ClauseLog "Seeding VS Code Portable Engine (v${VsCodeVer})..." -Level INFO
-    $CodeAsset = if ($IsOSWindows) { "vscode-win32-x64-${VsCodeVer}.zip" } elseif ($IsOSMac) { "VSCode-darwin-universal.zip" } else { "vscode-linux-x64-${VsCodeVer}.tar.gz" }
-    $CodeUrl   = if ($IsOSWindows) { "https://update.code.visualstudio.com/${VsCodeVer}/win32-x64-archive/stable" } elseif ($IsOSMac) { "https://update.code.visualstudio.com/${VsCodeVer}/darwin-universal/stable" } else { "https://update.code.visualstudio.com/${VsCodeVer}/linux-x64/stable" }
-    
-    $ArchivePath = Join-Path $TmpDir $CodeAsset
-    Get-File -Url $CodeUrl -OutFile $ArchivePath
-    
-    $ExtractTarget = Join-Path $TmpDir "code_out"
-    Expand-HermeticArchive -ArchivePath $ArchivePath -DestinationPath $ExtractTarget
-    Install-ExtractedArchive -ExtractTarget $ExtractTarget -DestinationPath $CodeDir
-    New-Item -ItemType Directory -Path (Join-Path $CodeDir "data") -Force | Out-Null
+    # Execute modular installer recipe
+    & $ScriptPath -Version $Version
 }
 
 # Cleanup transient downloads
@@ -359,6 +237,7 @@ if ($IsOSWindows) {
 # ==============================================================================
 # GENERATE NUSHELL MISE ACTIVATION OVERLAY
 # ==============================================================================
+$ExeExt  = if ($IsOSWindows) { ".exe" } else { "" }
 $MiseBin = Join-Path $LocalBin "mise$ExeExt"
 $NuBin   = Join-Path $LocalBin "nu$ExeExt"
 $MiseNu  = Join-Path $NuConfigDir "mise.nu"
@@ -375,6 +254,10 @@ if ((Test-Path $MiseBin) -and (Test-Path $NuBin)) {
 # Install Mise Dependencies (Userland Tools)
 Write-ClauseLog "Finalizing ClauseOS toolchain installation..." -Level INFO
 & $MiseBin install
+if ($LASTEXITCODE -ne 0) {
+    Write-ClauseLog "Mise installation failed with exit code $LASTEXITCODE" -Level FATAL
+    exit $LASTEXITCODE
+}
 
 # ==============================================================================
 # STAGE 2: NUSHELL HANDOFF (CLI, CI/CD NON-INTERACTIVE, & TTY ROUTING)
