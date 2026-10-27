@@ -1,4 +1,4 @@
-# clause.ps1 - Native PowerShell Entry Point for ClauseOS Bootloader
+# cx.ps1 - Native PowerShell Entry Point for ClauseOS Bootloader
 param(
     [Parameter(ValueFromRemainingArguments = $true)]
     [string[]]$ScriptArgs
@@ -7,7 +7,6 @@ param(
 $ErrorActionPreference = 'Stop'
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
-# Direct path to the microkernel bootloader
 $ClauseBootloader = Join-Path $ScriptDir "boot.ps1"
 
 if (-not (Test-Path $ClauseBootloader)) {
@@ -15,11 +14,11 @@ if (-not (Test-Path $ClauseBootloader)) {
     exit 1
 }
 
-# Execute clause.ps1 with un-restricted policy for the child process session
+# Delegate to the bootloader maintaining execution policy bypass
 if ($ScriptArgs) {
-    powershell.exe -NoProfile -ExecutionPolicy Bypass -File $ClauseBootloader @ScriptArgs
+    & $ClauseBootloader @ScriptArgs
 } else {
-    powershell.exe -NoProfile -ExecutionPolicy Bypass -File $ClauseBootloader
+    & $ClauseBootloader
 }
 
 exit $LASTEXITCODE
