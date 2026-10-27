@@ -1,45 +1,64 @@
-# .config/nushell/env.nu - ClauseOS Nushell Environment Lock
+# scripts/cli/nu/config/env.nu - ClauseOS Canonical Nushell Environment
 
-# Resolve ClauseOS root directory reliably from bootloader environment or current directory
-let clause_root = if ("CLAUSE_PROJECT_ROOT" in $env) {
+# 1. Inherit or Resolve Project Root
+let project_root = if ("CLAUSE_PROJECT_ROOT" in $env) {
     $env.CLAUSE_PROJECT_ROOT
-} else if ("CURRENT_FILE" in $env) {
-    ($env.CURRENT_FILE | path dirname | path join ".." "..")
 } else {
-    $env.PWD
+    $env.FILE_PWD | path join ".." ".." ".." ".." | path expand
 }
 
-# Root System Profile Anchors
-$env.CLAUSE_PROJECT_ROOT = $clause_root
-$env.HOME                = $clause_root
-$env.USERPROFILE         = $clause_root
+let clause_home = ($project_root | path join ".home")
+let is_windows  = (($nu.os-info.name | str lowercase) == "windows")
 
-# XDG Base Directories
-$env.XDG_CONFIG_HOME = ($clause_root | path join ".config")
-$env.XDG_DATA_HOME   = ($clause_root | path join ".local" "share")
-$env.XDG_STATE_HOME  = ($clause_root | path join ".local" "state")
-$env.XDG_CACHE_HOME  = ($clause_root | path join ".cache")
+$env.CLAUSE_PROJECT_ROOT = $project_root
+$env.CLAUSE_HOME         = $clause_home
+$env.HOME                = $clause_home
+$env.USERPROFILE         = $clause_home
 
-# Windows Compatibility Environment Variables
-$env.APPDATA      = ($clause_root | path join ".local" "appdata")
-$env.LOCALAPPDATA = ($clause_root | path join ".local" "share")
+# 2. Platform Directory Anchors
+if $is_windows {
+    let win_local   = ($clause_home | path join "AppData" "Local")
+    let win_roaming = ($clause_home | path join "AppData" "Roaming")
 
-# Application Profile Targets
-$env.GIT_CONFIG_GLOBAL = ($clause_root | path join ".gitconfig")
-$env.NU_CONFIG_DIR     = ($clause_root | path join ".config" "nushell")
-$env.GH_CONFIG_DIR     = ($clause_root | path join ".config" "gh")
+    $env.LOCALAPPDATA = $win_local
+    $env.APPDATA      = $win_roaming
 
-# Isolated Toolchain Directories
-$env.MISE_DATA_DIR   = ($clause_root | path join ".cache" "toolchain" "mise")
-$env.MISE_CONFIG_DIR = ($clause_root | path join ".cache" "toolchain" "mise-config")
-$env.MISE_STATE_DIR  = ($clause_root | path join ".cache" "toolchain" "mise-state")
-$env.MISE_CACHE_DIR  = ($clause_root | path join ".cache" "toolchain" "mise-cache")
+    $env.CLAUSE_BIN_DIR   = ($win_local | path join "Programs" "bin")
+    $env.CLAUSE_APPS_DIR  = ($win_local | path join "Programs" "apps")
+    $env.CLAUSE_TEMP_DIR  = ($win_local | path join "Temp")
+    $env.CLAUSE_LOGS_DIR  = ($win_local | path join "Programs" "logs")
 
-# Enforce .local/bin Prepend
-let local_bin = ($clause_root | path join ".local" "bin")
-if not ($env.PATH | any { |p| $p == $local_bin }) {
-    $env.PATH = ($env.PATH | prepend $local_bin)
+    $env.MISE_DATA_DIR   = ($win_local | path join "mise")
+    $env.MISE_CONFIG_DIR = ($win_roaming | path join "mise")
+    $env.MISE_STATE_DIR  = ($win_local | path join "mise" "state")
+    $env.MISE_CACHE_DIR  = ($win_local | path join "mise" "cache")
+} else {
+    $env.XDG_CONFIG_HOME = ($clause_home | path join ".config")
+    $env.XDG_DATA_HOME   = ($clause_home | path join ".local" "share")
+    $env.XDG_STATE_HOME  = ($clause_home | path join ".local" "state")
+    $env.XDG_CACHE_HOME  = ($clause_home | path join ".cache")
+
+    $env.CLAUSE_BIN_DIR   = ($clause_home | path join ".local" "bin")
+    $env.CLAUSE_APPS_DIR  = ($clause_home | path join ".local" "apps")
+    $env.CLAUSE_TEMP_DIR  = ($clause_home | path join ".cache" "tmp_bootstrap")
+    $env.CLAUSE_LOGS_DIR  = ($clause_home | path join ".local" "logs")
+
+    $env.MISE_DATA_DIR   = ($env.XDG_DATA_HOME | path join "mise")
+    $env.MISE_CONFIG_DIR = ($env.XDG_CONFIG_HOME | path join "mise")
+    $env.MISE_STATE_DIR  = ($env.XDG_STATE_HOME | path join "mise")
+    $env.MISE_CACHE_DIR  = ($env.XDG_CACHE_HOME | path join "mise")
 }
 
-let mise_path = $nu.default-config-dir | path join mise.nu
+# 3. Dedicated Config and Identity Routing
+$env.GIT_CONFIG_GLOBAL = ($clause_home | path join ".gitconfig")
+$env.NU_CONFIG_DIR     = ($project_root | path join "scripts" "cli" "nu" "config")
+
+# 4. PATH Injection (Stage 0 Binaries Only)
+let bin_dir = $env.CLAUSE_BIN_DIR
+if not ($env.PATH | any { |p| $p == $bin_dir }) {
+    $env.PATH = ($env.PATH | prepend $bin_dir)
+}
+
+# 5. Dynamic Mise Activation Overlay Generation
+let mise_path = ($env.NU_CONFIG_DIR | path join "mise.nu")
 ^mise activate nu | save $mise_path --force
