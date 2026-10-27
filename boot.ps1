@@ -16,6 +16,16 @@ if (-not (Test-Path $EnvScript)) {
 
 # Detect OS flags
 $IsOSWindows = $IsWindows -or $env:OS -eq "Windows_NT"
+
+# Ensure hermetic AppData trees exist so nu and cosign/TUF never hit missing dirs
+if ($IsOSWindows) {
+    $WinRoaming = Join-Path $env:CLAUSE_HOME "AppData\Roaming"
+    $WinLocal   = Join-Path $env:CLAUSE_HOME "AppData\Local"
+    @($WinRoaming, $WinLocal) | ForEach-Object {
+        if (-not (Test-Path $_)) { New-Item -ItemType Directory -Force -Path $_ | Out-Null }
+    }
+}
+
 $IsOSMac     = $IsMacOS -or ($PSVersionTable.OS -like "*Darwin*")
 $IsOSLinux   = -not $IsOSWindows -and -not $IsOSMac
 
