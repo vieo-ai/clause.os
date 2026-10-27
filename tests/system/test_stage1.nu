@@ -5,8 +5,16 @@ export def main [] {
     print "  [+] Testing Stage 1: Portable Apps & AI Components..."
 
     let project_root = ($env.CLAUSE_PROJECT_ROOT? | default $env.PWD)
-    let app_dir = ($project_root | path join ".local" "apps")
-    let exe_ext = if ($nu.os-info.name == "windows") { ".exe" } else { "" }
+    let is_windows = (($nu.os-info.name | str lowercase) == "windows")
+    let exe_ext = if $is_windows { ".exe" } else { "" }
+
+    # Resolve apps directory from canonical env or derive from .home
+    let default_apps = if $is_windows {
+        $project_root | path join ".home" "AppData" "Local" "Programs" "apps"
+    } else {
+        $project_root | path join ".home" ".local" "apps"
+    }
+    let app_dir = ($env.CLAUSE_APPS_DIR? | default $default_apps)
 
     # 1. Check Lemonade GPU Engine
     let lemonade_dir = ($app_dir | path join "lemonade")
