@@ -10,6 +10,15 @@ USERPROFILE         = "{{config_root}}/.home"
 GIT_CONFIG_GLOBAL   = "{{config_root}}/.home/.gitconfig"
 NU_CONFIG_DIR       = "{{config_root}}/scripts/cli/nu/config"
 
+_.path = [
+    "{{ env.CLAUSE_BIN_DIR }}",
+    "{{ env.CLAUSE_APPS_DIR }}/lemonade",
+    "{{ env.CLAUSE_APPS_DIR }}/fastflowlm",
+    "{{ env.CLAUSE_APPS_DIR }}/apm",
+    "{{ env.CLAUSE_APPS_DIR }}/vscode/bin",
+    "{{ env.CLAUSE_APPS_DIR }}/pulumi",
+]
+
 [tools]
 # --- 1. BEAM CONCURRENCY & CONTROL PLANE (CARRIER CORE) ---
 erlang = "29.1.2"
