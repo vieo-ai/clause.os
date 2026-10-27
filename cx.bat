@@ -1,14 +1,14 @@
 @echo off
-rem install.bat - Reads .clause.toml, bootstraps pwsh into .local\bin, and hands off to clause.ps1
+rem cx.bat - Reads .clause.toml, bootstraps pwsh into .home\AppData\Local\Programs\bin, and hands off to boot.ps1
 setlocal enableextensions enabledelayedexpansion
 
 set "CLAUSE_ROOT=%~dp0"
 if "%CLAUSE_ROOT:~-1%"=="\" set "CLAUSE_ROOT=%CLAUSE_ROOT:~0,-1%"
 
 set "CLAUSE_PROJECT_ROOT=%CLAUSE_ROOT%"
-set "LOCAL_BIN=%CLAUSE_ROOT%\.local\bin"
+set "LOCAL_BIN=%CLAUSE_ROOT%\.home\AppData\Local\Programs\bin"
 set "PWSH_EXE=%LOCAL_BIN%\pwsh.exe"
-set "TMP_DIR=%CLAUSE_ROOT%\.cache\tmp_bootstrap"
+set "TMP_DIR=%CLAUSE_ROOT%\.home\AppData\Local\Temp\tmp_bootstrap"
 set "MANIFEST=%CLAUSE_ROOT%\.clause.toml"
 
 if not exist "%LOCAL_BIN%" mkdir "%LOCAL_BIN%"
@@ -40,7 +40,7 @@ if "%PWSH_VER%"=="" (
 
 if "%PWSH_VER:~0,1%"=="v" set "PWSH_VER=%PWSH_VER:~1%"
 
-echo [ClauseOS] Seeding PowerShell Core ^(v%PWSH_VER%^) into .local\bin\...
+echo [ClauseOS] Seeding PowerShell Core ^(v%PWSH_VER%^) into .home\AppData\Local\Programs\bin\...
 if not exist "%TMP_DIR%" mkdir "%TMP_DIR%"
 
 set "PWSH_ASSET=powershell-%PWSH_VER%-win-x64.zip"
