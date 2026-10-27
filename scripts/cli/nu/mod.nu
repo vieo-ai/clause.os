@@ -9,6 +9,7 @@ def main [cmd?: string, ...args: string] {
     }
 
     let root = ($env.CLAUSE_PROJECT_ROOT? | default ($env.PWD))
+    let bin_dir = ($env.CLAUSE_BIN_DIR? | default ($root | path join ".home" ".local" "bin"))
     let normalized = ($cmd | str replace -a ":" "_")
     let nu_bin = $nu.current-exe
 
@@ -36,11 +37,9 @@ def main [cmd?: string, ...args: string] {
     # 4. Search PowerShell Engine: scripts/cli/ps1/commands/<command>.ps1
     let ps_script = ($root | path join "scripts" "cli" "ps1" "commands" $"($normalized).ps1")
     if ($ps_script | path exists) {
-        let pwsh_bin = if $nu.os-info.name == "windows" {
-            ($root | path join ".local" "bin" "pwsh.exe")
-        } else {
-            ($root | path join ".local" "bin" "pwsh")
-        }
+        let is_win = (($nu.os-info.name | str lowercase) == "windows")
+        let pwsh_name = if $is_win { "pwsh.exe" } else { "pwsh" }
+        let pwsh_bin = ($bin_dir | path join $pwsh_name)
         
         let pwsh_cmd = if ($pwsh_bin | path exists) { $pwsh_bin } else { "powershell" }
         ^$pwsh_cmd -NoProfile -ExecutionPolicy Bypass -File $ps_script ...$args
