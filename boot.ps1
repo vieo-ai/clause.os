@@ -367,27 +367,35 @@ Write-ClauseLog "Finalizing ClauseOS toolchain installation..." -Level INFO
 & $MiseBin install
 
 # ==============================================================================
-# STAGE 2: NUSHELL HANDOFF
+# STAGE 2: NUSHELL HANDOFF (CLI, CI/CD NON-INTERACTIVE, & TTY ROUTING)
 # ==============================================================================
 Set-Location -Path $ProjectRoot
 
-$EnvNu    = Join-Path $NuConfigDir "env.nu"
+$EnvNu    = Join-Path $ProjectRoot "scripts/cli/nu/core/boot.nu"
 $ConfigNu = Join-Path $NuConfigDir "config.nu"
-$BootNu   = Join-Path $ProjectRoot "scripts\cli\nu\core\boot.nu"
 $IsNonInteractive = [Console]::IsInputRedirected -or $env:CI -eq "true"
 
 Write-ClauseLog "Performing Nushell handoff (Interactive=$(-not $IsNonInteractive))..." -Level INFO
 
 if (Test-Path $NuBin) {
-    if ($args.Count -gt 0) {
-        $CommandString = $args -join " "
-        & $NuBin --env-config $EnvNu --config $ConfigNu -e $"use '$BootNu' *; clause $CommandString"
-        exit $LASTEXITCODE
-    } elseif ($IsNonInteractive) {
-        & $NuBin --env-config $EnvNu --config $ConfigNu -e $"use '$BootNu' *; clause boot:check"
-        exit $LASTEXITCODE
+    if (Test-Path $EnvNu) {
+        if ($args.Count -gt 0) {
+            $CommandString = $args -join " "
+            & $NuBin --env-config $EnvNu -c "clause $CommandString"
+            exit $LASTEXITCODE
+        } elseif ($IsNonInteractive) {
+            & $NuBin --env-config $EnvNu -c "clause boot:check"
+            exit $LASTEXITCODE
+        } else {
+            if (Test-Path $ConfigNu) {
+                & $NuBin --env-config $EnvNu --config $ConfigNu -e "clause banner"
+            } else {
+                & $NuBin --env-config $EnvNu -e "clause banner"
+            }
+        }
     } else {
-        & $NuBin --env-config $EnvNu --config $ConfigNu -e $"use '$BootNu' *; clause banner"
+        Write-ClauseLog "Environment file missing at $EnvNu. Booting default Nushell shell..." -Level WARN
+        & $NuBin
     }
 } else {
     Write-ClauseLog "Nushell executable missing at $NuBin." -Level FATAL
