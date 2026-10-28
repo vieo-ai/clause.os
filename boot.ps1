@@ -228,6 +228,12 @@ if (Test-Path $TmpDir) {
     Remove-Item -Path $TmpDir -Recurse -Force -ErrorAction SilentlyContinue
 }
 
+if (Test-Path $env:CLAUSE_TEMP_DIR) {
+    Remove-Item -Path $env:CLAUSE_TEMP_DIR -Recurse -Force -ErrorAction SilentlyContinue
+}
+# Re-create empty Temp directory so downstream scripts can immediately use it
+New-Item -ItemType Directory -Force -Path $env:CLAUSE_TEMP_DIR | Out-Null
+
 # Windows Profile Attribute Protection
 if ($IsOSWindows) {
     if (Get-Command attrib.exe -ErrorAction SilentlyContinue) {
