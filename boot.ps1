@@ -282,6 +282,7 @@ if (Test-Path $MiseShims) {
 # ==============================================================================
 $RenvDir = Join-Path $ProjectRoot "scripts/cli/pwsh/renv"
 
+# 1. Unsloth AI Engine Recipe
 $UnslothVersion = Get-TomlValue -Content $TomlContent -Key "unsloth"
 if ($UnslothVersion) {
     $UnslothRecipe = Join-Path $RenvDir "installer_unsloth.ps1"
@@ -294,6 +295,23 @@ if ($UnslothVersion) {
     & $UnslothRecipe -Version $UnslothVersion
     if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
         Write-ClauseLog "Unsloth installer failed with exit code $LASTEXITCODE" -Level FATAL
+        exit $LASTEXITCODE
+    }
+}
+
+# 2. ComfyUI Studio Recipe
+$ComfyVersion = Get-TomlValue -Content $TomlContent -Key "comfyui"
+if ($ComfyVersion) {
+    $ComfyRecipe = Join-Path $RenvDir "installer_comfyui.ps1"
+    if (-not (Test-Path $ComfyRecipe)) {
+        Write-ClauseLog "ComfyUI recipe missing at: $ComfyRecipe" -Level FATAL
+        throw "[ClauseOS] Error: Recipe not found at $ComfyRecipe"
+    }
+
+    Write-ClauseLog "Dispatching post-Mise runtime recipe for ComfyUI (v$ComfyVersion)..." -Level INFO
+    & $ComfyRecipe -Version $ComfyVersion
+    if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+        Write-ClauseLog "ComfyUI installer failed with exit code $LASTEXITCODE" -Level FATAL
         exit $LASTEXITCODE
     }
 }
