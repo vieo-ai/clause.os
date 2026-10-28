@@ -38,5 +38,9 @@ export def main [] {
     assert ($vscode_dir | path exists) "[Stage 1 Failure] VS Code directory missing"
     assert ($vscode_data | path exists) "[Stage 1 Failure] VS Code portable 'data' folder missing"
 
+    # 5. Check Pulumi Infrastructure Engine
+    let pulumi_bin = ($app_dir | path join "pulumi" $"pulumi($exe_ext)")
+    assert ($pulumi_bin | path exists) $"[Stage 1 Failure] Pulumi binary missing at ($pulumi_bin)"
+
     print "  [✓] Stage 1 Portable Apps Verified Successfully."
 }
