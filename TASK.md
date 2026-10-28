@@ -4,7 +4,7 @@
 
 ClauseOS is a zero-overhead, bare-metal microkernel environment for AI workloads and developer tools. It enforces deterministic, hermetic state isolation across Windows, Linux, and macOS without relying on containers or virtual machines.
 
-This ledger documents the chronological evolution of the system based on git commit history from repository creation to full green matrix cross-platform CI/CD status.
+This ledger documents the chronological evolution of the system based on git commit history from repository creation to full green matrix cross-platform CI/CD status, followed by active and upcoming architectural phases.
 
 ---
 
@@ -71,18 +71,63 @@ This ledger documents the chronological evolution of the system based on git com
 
 ## Architectural Decision Records (ADRs)
 
-| ADR | Title | Key Commits | Status |
+| ADR | Title | Key Commits / Context | Status |
 | :--- | :--- | :--- | :--- |
-| [ADR 001](docs/adr/0001-hermetic-state-confinement-and-canonical-directory-hierarchy.md) | Hermetic State Confinement and Canonical Directory Hierarchy | `6ddde493`, `872e5387`, `09a4dd3b`, `e59cbc0a` | Accepted |
-| [ADR 002](docs/adr/0002-two-tier-toolchain-orchestration-mise-and-renv.md) | Two-Tier Toolchain Orchestration (Mise + Renv) | `6a441003`, `38808378`, `5cecce66`, `e7358ed8` | Accepted |
-| [ADR 003](docs/adr/0003-dynamic-multi-vendor-hardware-acceleration-matrix.md) | Dynamic Multi-Vendor Hardware Acceleration Matrix | `d42e0b46`, `9db433a1`, `2e8e5150`, `d452e807` | Accepted |
-| [ADR 004](docs/adr/0004-cross-shell-environment-and-path-delimiter-canonicalization.md) | Cross-Shell Environment and PATH Delimiter Canonicalization | `a9f80ea0`, `26d47ba9`, `501bafdb`, `3f588384` | Accepted |
+| [ADR 001](docs/adr/0001-hermetic-state-confinement-and-canonical-directory-hierarchy.md) | Hermetic State Confinement and Canonical Directory Hierarchy[cite: 2] | `6ddde493`, `872e5387`, `09a4dd3b`, `e59cbc0a`[cite: 2] | Accepted[cite: 2] |
+| [ADR 002](docs/adr/0002-two-tier-toolchain-orchestration-mise-and-renv.md) | Two-Tier Toolchain Orchestration (Mise + Renv)[cite: 2] | `6a441003`, `38808378`, `5cecce66`, `e7358ed8`[cite: 2] | Accepted[cite: 2] |
+| [ADR 003](docs/adr/0003-dynamic-multi-vendor-hardware-acceleration-matrix.md) | Dynamic Multi-Vendor Hardware Acceleration Matrix[cite: 2] | `d42e0b46`, `9db433a1`, `2e8e5150`, `d452e807`[cite: 2] | Accepted[cite: 2] |
+| [ADR 004](docs/adr/0004-cross-shell-environment-and-path-delimiter-canonicalization.md) | Cross-Shell Environment and PATH Delimiter Canonicalization[cite: 2] | `a9f80ea0`, `26d47ba9`, `501bafdb`, `3f588384`[cite: 2] | Accepted[cite: 2] |
+| [ADR 005](docs/adr/0005-unified-model-storage-hub.md) | Unified Model Storage & Ecosystem Cache Projection | Stage 0/3 Path Exports, `HF_HOME` Anchoring | Accepted |
+| [ADR 006](docs/adr/0006-micro-instance-virtualization.md) | Cross-Platform Micro-Instance Virtualization (`cx vm`) | WSL2 / Lima Dynamic Hypervisor Dispatch | Accepted |
+| [ADR 007](docs/adr/0007-open-core-and-monetization.md) | Open-Core Substrate vs. Industry Adaptation Commercialization | Base Substrate vs. Enterprise Industry Packs | Accepted |
+| [ADR 008](docs/adr/0008-virtual-enterprise-agent-hierarchy.md) | Virtual Enterprise Organizational Hierarchy & Agent Governance | Board, Executive, Department Schemas | Accepted |
+| [ADR 009](docs/adr/0009-agent-skills-plugins-vscode-harness.md) | VS Code Agent Host, Extensibility Plugins, and Skill Toolsets | Portable VS Code, Plugin & Skill Routers | Accepted |
 
 ---
 
-## Current Status & Next Actions
+## Active Milestone: v0.1.5-dev (Substrate Hardening & Agent Virtual Enterprise)
 
-* **Current Status**: Complete bare-metal hermetic microkernel operational across Windows, Linux, and macOS. CI/CD test matrices passing 100% green with native Unsloth and ComfyUI runtime deployments.
-* **Active Tasks**:
-  1. Implement shared weight routing for ComfyUI and Unsloth via automated generation of `extra_model_paths.yaml`.
-  2. Add automated inference sanity-check tests (`tests/system/test_inference.nu`) for headless GPU validation.
+### Phase 9: Core Orchestration & Unified AI Storage (Immediate Next)
+- [ ] **HashiStack Toolchain Hydration**:
+  - Register `nomad`, `consul`, and `vault` in `.mise.toml` under Stage 1/2.
+  - Verify executable shims populate `.home/.local/share/mise/shims` across platforms.
+- [ ] **Hermetic Cluster Configuration Anchoring**:
+  - Author `ops/config/nomad.hcl` (bound to `$env:CLAUSE_HOME/.local/share/nomad` with `raw_exec` enabled).
+  - Author `ops/config/consul.hcl` (bound to `$env:CLAUSE_HOME/.local/share/consul` with UI enabled).
+  - Author `ops/config/vault.hcl` (bound to `$env:CLAUSE_HOME/.local/share/vault` with local TCP listener).
+- [ ] **Model Hub Unification**:
+  - Export canonical `$env:HF_HOME`, `$env:HUGGINGFACE_HUB_CACHE`, `$env:TRANSFORMERS_CACHE`, and `$env:TORCH_HOME` across `env.ps1`, `env.nu`, and `env.sh`.
+  - Update `installer_comfyui.ps1` to generate `extra_model_paths.yaml` bound to `$env:HF_HOME/hub`.
+- [ ] **Headless Sanity Testing**:
+  - Implement `tests/system/test_inference.nu` to validate device resolution without invoking interactive shells.
+
+### Phase 10: Hermetic Micro-Instance Virtualization (`cx vm`)
+- [ ] **Windows Driver (`wsl.exe`)**:
+  - Implement import/export pipeline targeting `$env:CLAUSE_HOME/AppData/Local/Programs/vms/<name>/ext4.vhdx`.
+  - Inject `/etc/wsl.conf` with systemd enabled and Windows path appending disabled.
+- [ ] **POSIX Driver (`limactl`)**:
+  - Implement wrapper routing with `$env:LIMA_HOME` bound to `$env:CLAUSE_HOME/.local/share/vms`.
+- [ ] **CLI Module Integration**:
+  - Author `scripts/cli/nu/modules/vm.nu` (`launch`, `exec`, `shell`, `list`, `stop`, `purge`).
+  - Wire `vm` command tree into the Universal Command Router (`cx vm`).
+
+### Phase 11: Virtual Enterprise Agent Hierarchy & VS Code Host
+- [ ] **Local Neural Coprocessor Supervisor**:
+  - Implement Nushell module to manage background inference processes for Stage 0 Lemonade / FastFlowLM daemons (`http://127.0.0.1:8000/v1`).
+- [ ] **Governance & Role Definitions (`.enterprise/`)**:
+  - Scaffold `.enterprise/board/constitution.toml` with immutable sandbox and spend boundaries.
+  - Create executive role definitions (`ceo_agent`, `cto_agent`, `cpo_agent`) in `.enterprise/executive/`.
+  - Scaffold operational departments (`engineering`, `security_audit`, `site_reliability`, `documentation_qa`) in `.enterprise/departments/`.
+- [ ] **Nomad Write-Access Worker**:
+  - Create `ops/jobs/repo_agent.nomad.hcl` executing under `raw_exec` with full `$env:CLAUSE_PROJECT_ROOT` write scope and branch isolation.
+- [ ] **Skill Toolset Core (`.enterprise/skills/`)**:
+  - Implement execution runner for modular skills (`git-ops`, `code-analysis`, `test-runner`, `adr-writer`).
+- [ ] **Portable VS Code Control Plane**:
+  - Confine user data and extension paths to `.home/.local/app/vscode/`.
+  - Wire workspace extensions and telemetry settings to the local coprocessor and Nomad cluster.
+
+### Phase 12: Release Promotion & Commercial Fork
+- [ ] **Substrate Audit**: Full pass of `run_all.nu` hermeticity and orchestration tests on Windows, Linux, and macOS runners.
+- [ ] **Version Promotion**: Bump `.clause.toml` to `0.1.5` and cut `v0.1.5` git tag (stripping `-dev` / milestone markers).
+- [ ] **Publish Open Core**: Ship the unconstrained Apache 2.0 substrate.
+- [ ] **Fork Commercial Track**: Initialize the enterprise repository for industry-specific compliance packs and connectors.
