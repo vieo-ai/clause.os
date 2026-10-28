@@ -64,18 +64,27 @@ $env.GIT_CONFIG_GLOBAL = ($clause_home | path join ".gitconfig")
 $env.NU_CONFIG_DIR     = ($project_root | path join "scripts" "cli" "nu" "config")
 
 # 4. PATH Injection (Stage 0 Binaries Only)
-# Ensure binary root is prepended with symlink-canonical comparison
 let bin_dir = ($env.CLAUSE_BIN_DIR | path expand)
-let current_paths = if ($env.PATH | describe | str starts-with "list") {
+
+# Defensively decompose raw PATH entries across both list structures and cross-shell delimiter artifacts (; vs :)
+let raw_paths = if ($env.PATH | describe | str starts-with "list") {
     $env.PATH
 } else {
     $env.PATH | split row (char esep)
 }
 
+let current_paths = ($raw_paths
+    | flat-map { |p| $p | split row ";" }
+    | flat-map { |p| $p | split row ":" }
+    | where { |p| ($p | str trim) != "" }
+)
+
 if not ($current_paths | any { |p| 
     if ($p | path exists) { ($p | path expand) == $bin_dir } else { $p == $bin_dir }
 }) {
-    $env.PATH = ($env.PATH | prepend $bin_dir)
+    $env.PATH = ($current_paths | prepend $bin_dir)
+} else {
+    $env.PATH = $current_paths
 }
 
 # 5. Dynamic Mise Activation Overlay Generation
