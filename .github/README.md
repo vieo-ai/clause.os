@@ -11,15 +11,19 @@
 [![Platforms](https://img.shields.io/badge/Platforms-Windows%20%7C%20Linux%20%7C%20macOS-blue?style=for-the-badge&logo=linux&logoColor=white)](#)
 [![Isolation](https://img.shields.io/badge/Confinement-Zero--Contamination%20Bare--Metal-orange?style=for-the-badge&logo=buffer&logoColor=white)](#)
 [![Hardware Acceleration](https://img.shields.io/badge/Hardware-CUDA%20%7C%20ROCm%20%7C%20XPU%20%7C%20MPS-purple?style=for-the-badge&logo=nvidia&logoColor=white)](#)
+[![Virtual Enterprise](https://img.shields.io/badge/Agents-Autonomous%20Virtual%20Enterprise-indigo?style=for-the-badge&logo=anthropic&logoColor=white)](#)
 
 <p align="center">
   <a href="#-overview">Overview</a> •
   <a href="#-core-architectural-pillars">Architectural Pillars</a> •
   <a href="#-operating-system-primitives-mapping">OS Primitives</a> •
   <a href="#-canonical-directory-hierarchy">Directory Layout</a> •
+  <a href="#-unified-model-cache--ai-storage">AI Storage</a> •
+  <a href="#-cross-platform-micro-virtualization-cx-vm">Virtualization</a> •
+  <a href="#-autonomous-virtual-enterprise">Virtual Enterprise</a> •
   <a href="#-hardware-acceleration-matrix">Hardware Matrix</a> •
   <a href="#-quick-start">Quick Start</a> •
-  <a href="#-cloud-bursting--detachment">Cloud Bursting</a> •
+  <a href="#-open-core--monetization-strategy">Strategy</a> •
   <a href="#-architecture-decision-records">ADRs</a>
 </p>
 
@@ -31,30 +35,34 @@
 
 **ClauseOS** is a bare-metal, self-contained operating system environment architecture designed to execute directly on the host machine while operating entirely within a hermetically confined profile directory (`.home/`). By redirecting `$HOME`, `$USERPROFILE`, and standard OS directory structures strictly into this localized root, ClauseOS eliminates host-level package managers, path pollution, global registry tampering, and configuration drift.
 
-ClauseOS functions as an **Air-Gapped Seed Node**: a mobile command center capable of operating offline, self-bootstrapping isolated developer toolchains and specialized neural runtimes, bursting infrastructure into remote clouds via Pulumi, and cleanly detaching while cloud clusters continue autonomous operations.
+ClauseOS functions as an **Air-Gapped Seed Node**: a mobile command center capable of operating completely offline, self-bootstrapping isolated developer toolchains and specialized neural runtimes, bursting infrastructure into remote clouds via Pulumi, and cleanly detaching while cloud clusters continue autonomous operations.
 
-Unlike virtual machines or Docker containers, ClauseOS introduces **zero hypervisor overhead** and grants applications unhindered, direct bare-metal access to hardware acceleration pipelines (NVIDIA CUDA, AMD ROCm, Intel XPU, and Apple Silicon MPS).
+Unlike virtual machines or Docker containers, ClauseOS introduces **zero hypervisor overhead** for local tools and grants applications unhindered, direct bare-metal access to hardware acceleration pipelines (NVIDIA CUDA, AMD ROCm, Intel XPU, and Apple Silicon MPS).
 
 ---
 
 ## 🏛️ Core Architectural Pillars
 
 ### 1. 🛡️ True Bare-Metal Hermetic Confinement
-* **Immutable State Root (`.home/`):** All configurations, state stores, caches, and application data reside inside `CLAUSE_PROJECT_ROOT/.home`.
+* **Immutable State Root (`.home/`):** All configurations, state stores, caches, models, and application data reside inside `CLAUSE_PROJECT_ROOT/.home`.
 * **Zero Global Pollution:** Deleting `.home/` completely resets the environment to a pristine state without leaving residual files, PATH edits, or registry entries on the host machine.
 * **Automated Hermeticity Assertions:** Continuous CI/CD testing (`tests/system/test_hermeticity.nu`) guarantees zero host path leakage or shell delimiter bleeding.
 
 ### 2. ⚙️ Two-Tier Orchestration Model (`mise` + `renv`)
-* **Stage 1 & 2 (Base Tools):** Managed via `mise` (`.mise.toml`), provisioning core developer runtimes (`uv`, `just`, `git`, `nu`, `pulumi`).
-* **Stage 3 (`renv` Application Layer):** Custom, isolated runtime environments provisioned on-demand via standalone `uv` into dedicated virtual environments (`apps/<name>/venv`), each having an independent CPython installation and zero cross-package contamination.
+* **Stage 1 & 2 (Base Tools & Cluster Engines):** Managed via `mise` (`.mise.toml`), provisioning core developer runtimes (`uv`, `just`, `git`, `nu`, `pulumi`) alongside HashiStack orchestrators (`nomad`, `consul`, `vault`).
+* **Stage 3 (`renv` Application Layer):** Custom, isolated runtime environments provisioned on-demand via standalone `uv` into dedicated virtual environments (`apps/<name>/venv`), each with an independent CPython installation and zero cross-package contamination.
 
-### 3. 🎯 5-Way Dynamic Hardware Matrix
-* Automatic, non-blocking hardware inspection during boot.
-* Intelligently selects, binds, and downloads optimal PyTorch wheels across **NVIDIA CUDA** (`cu124`–`cu130`), **AMD ROCm** (ROCm 7.2 on Linux, ROCm 10.0 multi-arch on Windows), **Intel Arc/XPU**, **Apple Silicon MPS**, with defensive CPU fallback.
+### 3. 🧠 Unified Ecosystem Model Storage (`HF_HOME`)
+* Consolidates all AI checkpoints, LoRAs, UNet backbones, and GGUF quantizations into a single shared root (`.home/.local/share/models`).
+* Automatically maps ComfyUI via `extra_model_paths.yaml` directly to the shared Hugging Face cache, eliminating redundant multi-gigabyte weight downloads between Unsloth, ComfyUI, Lemonade, and FastFlowLM.
 
-### 4. 🐚 Polyglot Cross-Shell Integrity
-* Unified Stage 0 bootloader trampolines (`cx.bat`, `cx.ps1`, `cx.sh`) normalizing cross-platform delimiters (`;` on Windows vs. `:` on POSIX) and symlink resolution differences (`/var` vs `/private/var` on macOS).
-* Boots into **Nushell** as the primary interactive workbench shell.
+### 4. 📦 Cross-Platform Micro-Virtualization (`cx vm`)
+* Unified, disposable micro-instance engine running Linux-exclusive workloads (e.g., bare-metal Kubernetes/k3s, systemd daemons, eBPF probes) without privileged host daemons.
+* Dynamically dispatches to **WSL2** on Windows (rootfs tarball imports confined to `.home/`) and **Lima (`limactl`)** on macOS/Linux with native multi-distro support (Alpine, Ubuntu, Debian).
+
+### 5. 🤖 Autonomous Virtual Enterprise
+* Built-in multi-agent corporate hierarchy (Board of Directors, Executive Leadership, Operational Departments) governed by `constitution.toml`.
+* Autonomous agents leverage local neural coprocessors, execute batch tasks via Nomad `raw_exec` with full repo write privileges, and collaborate through an embedded Portable VS Code command harness.
 
 ---
 
@@ -69,15 +77,16 @@ ClauseOS maps userland binaries and services directly into functional OS system 
 | **Driver & HAL** | Mise | `.home/.../bin/mise` | Unified toolchain driver & dynamic runtime manager |
 | **Task Scheduler** | Just | `.home/.../bin/just` | Task runner for system workflows & operational recipes |
 | **Private Python Driver** | `uv` (Astral) | `.home/.../bin/uv` | Hermetic virtual environment & wheel resolution engine |
+| **Micro-Hypervisor** | `cx vm` (WSL2 / Lima) | `.home/.../vms/` | Disposable Linux micro-instances for k3s & Linux-only daemons |
 | **AI Fine-Tuning Engine**| Unsloth | `.home/.../apps/unsloth/` | Hardware-accelerated LLM parameter-efficient training |
 | **Neural Studio** | ComfyUI | `.home/.../apps/comfyui/` | Node-based diffusion model inference & visual studio |
-| **Neural Coprocessors** | Lemonade / FastFlowLM | `.home/.../apps/lemonade/` | Embedded LLM inference daemons & background agents |
-| **Window Manager / UI** | Portable VS Code | `.home/.../apps/vscode/` | Primary graphical development cockpit |
+| **Neural Coprocessors** | Lemonade / FastFlowLM | `.home/.../apps/lemonade/` | Embedded local LLM inference daemons & background agents |
+| **Window Manager / UI** | Portable VS Code | `.home/.../apps/vscode/` | Primary graphical cockpit & agent host harness |
 | **Concurrency Engine** | Erlang (BEAM) / Gleam | `.home/.../mise/installs/erlang` | Fault-tolerant distributed actor subsystem |
 | **Infra Kernel** | Pulumi CLI | `.home/.../apps/pulumi/` | Multi-cloud resource orchestration & state engine |
-| **Workload Scheduler** | HashiCorp Nomad | `.home/.../bin/nomad` | Distributed job & container orchestrator |
+| **Workload Scheduler** | HashiCorp Nomad | `.home/.../bin/nomad` | Distributed job & container orchestrator (`raw_exec`) |
 | **Service Registry** | HashiCorp Consul | `.home/.../bin/consul` | Service discovery, mesh DNS, & Raft consensus |
-| **Secrets Engine** | HashiCorp Vault | `.home/.../bin/vault` | Cryptographic key storage & identity management |
+| **Secrets Engine** | HashiCorp Vault | `.home/.../bin/vault` | Cryptographic key storage, leases, & identity management |
 
 ---
 
@@ -87,31 +96,41 @@ ClauseOS maps platform-specific conventions directly into the `.home/` sandbox:
 
 ```text
 CLAUSE_PROJECT_ROOT/
+├── .enterprise/                          # Virtual Enterprise Configuration Root
+│   ├── board/                            # Board of Directors & constraints (constitution.toml)
+│   ├── executive/                        # C-Suite agent schemas (CEO, CTO, CPO)
+│   ├── departments/                      # Operational departments (Engineering, Security, SRE, QA)
+│   ├── skills/                           # Modular CLI skills & toolsets (git-ops, test-runner)
+│   └── plugins/                          # Dynamic reasoning extensions for agent harness
 ├── .home/                                # Hermetic Root ($HOME & $USERPROFILE)
 │   ├── AppData/Local/Programs/           # [Windows] Binaries, apps, and logs
 │   │   ├── bin/                          # Unified Stage 0/1 binaries & Mise shims
-│   │   ├── apps/                         # Standalone 'renv' deployments
-│   │   │   ├── unsloth/                  # Isolated Python + Unsloth venv
-│   │   │   ├── comfyui/                  # Isolated Python + ComfyUI venv & src
-│   │   │   ├── vscode/                   # Portable VS Code distribution
-│   │   │   └── pulumi/                   # Pulumi engine & plugins
+│   │   ├── apps/                         # Standalone 'renv' deployments (unsloth, comfyui, vscode)
+│   │   ├── vms/                          # Confined WSL2 Virtual Hard Disks (ext4.vhdx)
 │   │   └── logs/                         # Bootstrap & system execution logs
 │   ├── .local/                           # [POSIX] Linux / macOS Application & Binary Root
 │   │   ├── bin/                          # Unified binaries & shims
 │   │   ├── apps/                         # Standalone 'renv' applications
-│   │   ├── logs/                         # Bootstrap & execution logs
-│   │   └── share/                        # Persistent shared application data (Mise data)
+│   │   ├── share/                        # Persistent application data (Mise, Nomad, Consul, Vault)
+│   │   │   ├── models/                   # Unified Model Hub ($HF_HOME)
+│   │   │   │   ├── hub/                  # Shared Hugging Face weights, LoRAs, and checkpoints
+│   │   │   │   └── torch/                # Torch hub cache
+│   │   │   └── vms/                      # Confined Lima micro-instances ($LIMA_HOME)
+│   │   └── logs/                         # Bootstrap & execution logs
 │   ├── .config/                          # [POSIX] XDG Config Home (Mise config, etc.)
-│   ├── .cache/                           # Cache root (uv cache, download staging, temporary runtimes)
+│   ├── .cache/                           # Cache root (uv cache, vms/images rootfs cache)
 │   └── .gitconfig                        # Isolated Git user identity file
 ├── docs/
 │   └── adr/                              # Architecture Decision Records (ADRs)
-├── ops/                                  # Pulumi Cloud Infrastructure stacks
+├── ops/                                  # Infrastructure as Code & Orchestration
+│   ├── config/                           # Nomad, Consul, and Vault HCL configs
+│   ├── jobs/                             # Nomad job definitions (agent workers, batch runs)
+│   └── stacks/                           # Pulumi Cloud Infrastructure definitions
 ├── packages/                             # Custom internal packages & language extensions
 ├── projects/                             # User projects & workspace repositories
 ├── scripts/
 │   ├── cli/
-│   │   ├── nu/config/                    # Nushell canonical configs (env.nu, config.nu, mise.nu)
+│   │   ├── nu/                           # Nushell modules (vm.nu, coprocessor.nu, config.nu)
 │   │   └── pwsh/
 │   │       ├── installers/               # Stage 1 pre-Mise bootstrap installers
 │   │       └── renv/                     # Stage 3 post-Mise runtime environment recipes
@@ -126,6 +145,84 @@ CLAUSE_PROJECT_ROOT/
 ├── cx.ps1                                # PowerShell Entrypoint Trampoline
 └── cx.sh                                 # POSIX (Linux/macOS) Entrypoint Trampoline
 ```
+
+---
+
+## 🧠 Unified Model Cache & AI Storage
+
+All AI workloads share a single, zero-duplication model cache rooted in `$HF_HOME`:
+
+```text
+.home/.local/share/models/
+├── hub/
+│   ├── models--unsloth--Qwen2.5-Coder-7B-Instruct/   ◄── Shared by Unsloth & Coprocessor
+│   ├── models--black-forest-labs--FLUX.1-schnell/    ◄── Read by ComfyUI via extra_model_paths.yaml
+│   └── models--bartowski--Llama-3.2-3B-GGUF/         ◄── FastFlowLM / Lemonade Agent Daemon
+└── torch/                                             ◄── Torchvision & Torch Hub weights
+```
+
+* **Zero Duplication:** Unsloth fine-tunes weights directly against the same Hugging Face cache that ComfyUI queries for image generation and the agent daemons read for inference.
+* **Hermetic Portability:** Backing up or moving `.home/.local/share/models` preserves the complete weights library without touching host OS directories.
+
+---
+
+## 📦 Cross-Platform Micro-Virtualization (`cx vm`)
+
+For services requiring a full Linux kernel (such as lightweight Kubernetes via `k3s`, systemd services, or container daemons), ClauseOS exposes the unified `cx vm` subsystem:
+
+```text
+                               ┌─────────────────┐
+                               │     cx vm       │
+                               └────────┬────────┘
+                                        │
+                 ┌──────────────────────┴──────────────────────┐
+                 ▼                                             ▼
+         [Host == Windows]                             [Host == macOS / Linux]
+                 │                                             │
+          WSL2 Driver                                     Lima Driver
+       (wsl.exe --import)                              (limactl start)
+                 │                                             │
+    Confined: .home/.../vms/                      Confined: $LIMA_HOME (.home/.../vms/)
+  Distros: Alpine, Ubuntu, Debian               Distros: Alpine, Ubuntu, Debian
+```
+
+```nushell
+# Launch a featherweight Alpine instance in ~1 second
+cx vm launch k3s-node --distro alpine
+
+# Execute commands directly inside the micro-instance
+cx vm exec k3s-node -- uname -a
+
+# Open an interactive shell
+cx vm shell k3s-node
+
+# Cleanly purge the VM and wipe all state
+cx vm purge k3s-node
+```
+
+---
+
+## 🤖 Autonomous Virtual Enterprise
+
+ClauseOS includes an enterprise agent harness designed to run autonomous developer and operational teams directly inside the workspace:
+
+```text
+.enterprise/
+├── board/                              # Governance & constraints (constitution.toml)
+├── executive/
+│   ├── ceo_agent                       # Strategic roadmap & issue dispatching
+│   ├── cto_agent                       # Architectural integrity, ADR enforcement, code audits
+│   └── cpo_agent                       # Feature delivery & developer UX tracking
+├── departments/
+│   ├── engineering/                    # Full repo write access (feature branches, test suites)
+│   ├── security_audit/                 # Static analysis, dependency audits, secret scanning
+│   ├── site_reliability/              # Nomad workload monitoring & Consul mesh health
+│   └── documentation_qa/               # ADR authoring & documentation sync
+└── skills/                             # Modular CLI toolsets (git-ops, test-runner, adr-writer)
+```
+
+* **Write-Access Guardrails:** Agents run via Nomad `raw_exec` tasks with credentials leased through Vault. Code modifications occur on isolated feature branches and require green passes from `just test-hermeticity` before pull requests are finalized.
+* **Portable Cockpit:** Portable VS Code runs natively within the profile, bound directly to the local coprocessor (`http://127.0.0.1:8000/v1`) for local code intelligence.
 
 ---
 
@@ -179,16 +276,20 @@ Once inside the ClauseOS Nushell session, verify that your environment is comple
 just test-hermeticity
 ```
 
-### 3. Launch AI Workloads
-
-Launch any pre-configured AI engine directly via its isolated shim:
+### 3. Launch Orchestration & AI Workloads
 
 ```nushell
-# Run Unsloth CLI
-unsloth --help
+# Start local HashiCorp Nomad dev cluster
+nomad agent -dev -config ops/config/nomad.hcl
+
+# Launch local Neural Coprocessor Daemon
+coprocessor start --engine lemonade --port 8000
 
 # Launch ComfyUI Studio
 comfyui --listen 127.0.0.1 --port 8188
+
+# Launch Unsloth Fine-Tuning CLI
+unsloth --help
 ```
 
 ---
@@ -210,6 +311,22 @@ clause cloud detach
 
 ---
 
+## 💼 Open-Core & Monetization Strategy
+
+ClauseOS strictly adheres to an unconstrained, developer-first open-core model:
+
+* **Open-Source Base Substrate (100% Free & Unrestricted):**
+  * Complete hermetic single-driver OS environment (`.home/` confinement).
+  * Unlimited local node orchestration, clustering (Nomad/Consul/Vault), and cloud bursting via Pulumi.
+  * Dynamic 5-way GPU auto-detection and cross-platform virtualization (`cx vm`).
+  * Base Virtual Enterprise agent harness, skill runner, and portable editor cockpit.
+* **Commercial Tier (Industry Adaptation & Enterprise Blueprints):**
+  * **Regulated Industry Packs:** Pre-configured Virtual Enterprise cartridges for HIPAA Healthcare, FINRA/SEC FinTech, and Defense air-gapped environments.
+  * **Enterprise Compliance & Governance:** Cryptographic audit trails, Open Policy Agent (OPA) agent guardrails, and automated board-level risk controls.
+  * **Legacy Enterprise Connectors:** Turnkey bridges to SAP, Oracle, Epic, and corporate identity providers.
+
+---
+
 ## 📚 Architecture Decision Records (ADRs)
 
 Key architectural decisions are documented under `docs/adr/`:
@@ -218,6 +335,11 @@ Key architectural decisions are documented under `docs/adr/`:
 * [**ADR 0002**: Two-Tier Toolchain Orchestration (`mise` and `renv`)](docs/adr/0002-two-tier-toolchain-orchestration-mise-and-renv.md)
 * [**ADR 0003**: Dynamic Multi-Vendor Hardware Acceleration Matrix](docs/adr/0003-dynamic-multi-vendor-hardware-acceleration-matrix.md)
 * [**ADR 0004**: Cross-Shell Environment and PATH Delimiter Canonicalization](docs/adr/0004-cross-shell-environment-and-path-delimiter-canonicalization.md)
+* [**ADR 0005**: Unified Model Storage & Ecosystem Cache Projection](docs/adr/0005-unified-model-storage-hub.md)
+* [**ADR 0006**: Cross-Platform Micro-Instance Virtualization (`cx vm`)](docs/adr/0006-micro-instance-virtualization.md)
+* [**ADR 0007**: Open-Core Substrate vs. Industry Adaptation Commercialization](docs/adr/0007-open-core-and-monetization.md)
+* [**ADR 0008**: Virtual Enterprise Organizational Hierarchy & Agent Governance](docs/adr/0008-virtual-enterprise-agent-hierarchy.md)
+* [**ADR 0009**: VS Code Agent Host, Extensibility Plugins, and Skill Toolsets](docs/adr/0009-agent-skills-plugins-vscode-harness.md)
 
 ---
 
