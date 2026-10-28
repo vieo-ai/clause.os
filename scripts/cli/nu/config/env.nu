@@ -51,9 +51,12 @@ if $is_windows {
     $env.MISE_CACHE_DIR  = ($env.XDG_CACHE_HOME | path join "mise")
 }
 
-# Ensure the root cache directory exists on disk
+# Ensure root directories exist on disk so symlink expansion is deterministic
 if not ($env.CLAUSE_CACHE_DIR | path exists) {
     mkdir $env.CLAUSE_CACHE_DIR
+}
+if not ($env.CLAUSE_BIN_DIR | path exists) {
+    mkdir $env.CLAUSE_BIN_DIR
 }
 
 # 3. Dedicated Config and Identity Routing
@@ -61,8 +64,17 @@ $env.GIT_CONFIG_GLOBAL = ($clause_home | path join ".gitconfig")
 $env.NU_CONFIG_DIR     = ($project_root | path join "scripts" "cli" "nu" "config")
 
 # 4. PATH Injection (Stage 0 Binaries Only)
-let bin_dir = $env.CLAUSE_BIN_DIR
-if not ($env.PATH | any { |p| $p == $bin_dir }) {
+# Ensure binary root is prepended with symlink-canonical comparison
+let bin_dir = ($env.CLAUSE_BIN_DIR | path expand)
+let current_paths = if ($env.PATH | describe | str starts-with "list") {
+    $env.PATH
+} else {
+    $env.PATH | split row (char esep)
+}
+
+if not ($current_paths | any { |p| 
+    if ($p | path exists) { ($p | path expand) == $bin_dir } else { $p == $bin_dir }
+}) {
     $env.PATH = ($env.PATH | prepend $bin_dir)
 }
 
