@@ -1,3 +1,6 @@
+<p align="center">
+  <img src="../resources/images/clause-workflow.jpg" alt="Clause OS Workflow" width="100%">
+</p>
 <div align="center">
 
 # ⚡ ClauseOS (`clause.os`)
