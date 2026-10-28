@@ -28,16 +28,19 @@ export def main [] {
     }
     let local_bin = ($target_bin | path expand)
 
-    # Normalize $env.PATH: handle both string (colon-separated) and list structures
-    let raw_path_list = if ($env.PATH | describe | str starts-with "list") {
+    # Normalize $env.PATH: defensively handle lists, strings, and cross-shell delimiter bleeding (; vs :)
+    let raw_entries = if ($env.PATH | describe | str starts-with "list") {
         $env.PATH
     } else {
         $env.PATH | split row (char esep)
     }
 
-    let expanded_path = ($raw_path_list | each { |p| 
-        if ($p | path exists) { $p | path expand } else { $p }
-    })
+    let expanded_path = ($raw_entries 
+        | flat-map { |entry| $entry | split row ";" }
+        | flat-map { |entry| $entry | split row ":" }
+        | where { |entry| ($entry | str trim) != "" }
+        | each { |p| if ($p | path exists) { $p | path expand } else { $p } }
+    )
     
     let path_contains_bin = ($expanded_path | any { |p| $p == $local_bin })
     
