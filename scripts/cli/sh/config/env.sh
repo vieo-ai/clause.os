@@ -20,8 +20,12 @@ export XDG_CACHE_HOME="${CLAUSE_HOME}/.cache"
 
 export CLAUSE_BIN_DIR="${CLAUSE_HOME}/.local/bin"
 export CLAUSE_APPS_DIR="${CLAUSE_HOME}/.local/apps"
+export CLAUSE_CACHE_DIR="${XDG_CACHE_HOME}"
 export CLAUSE_TEMP_DIR="${XDG_CACHE_HOME}/tmp_bootstrap"
 export CLAUSE_LOGS_DIR="${CLAUSE_HOME}/.local/logs"
+
+# Ensure the root cache directory exists on disk
+[ -d "${CLAUSE_CACHE_DIR}" ] || mkdir -p "${CLAUSE_CACHE_DIR}"
 
 # Application Profile Targets
 export GIT_CONFIG_GLOBAL="${CLAUSE_HOME}/.gitconfig"
