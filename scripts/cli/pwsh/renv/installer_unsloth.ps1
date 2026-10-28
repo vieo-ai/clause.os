@@ -49,8 +49,8 @@ if (-not $UvExe) {
 
 Write-ClauseLog "Initializing Hermetic Unsloth AI Engine Deployment ($Version)..." -Level INFO
 
-# Provision target directories inside apps/unsloth/
-@($TargetDir, $ShimDir, $PrivatePyDir) | ForEach-Object {
+# Provision target directories inside apps/unsloth/ and ensure temp directory exists
+@($TargetDir, $ShimDir, $PrivatePyDir, $env:CLAUSE_TEMP_DIR, $env:CLAUSE_CACHE_DIR) | ForEach-Object {
     if (-not (Test-Path $_)) { New-Item -ItemType Directory -Force -Path $_ | Out-Null }
 }
 
