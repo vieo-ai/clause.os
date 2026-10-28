@@ -30,9 +30,14 @@ if (Test-Path $DirectUv) {
     if ($CommandUv) {
         $UvExe = $CommandUv.Source
     } else {
-        $MiseShims = Join-Path $env:CLAUSE_HOME (if ($IsOSWindows) { "AppData\Local\mise\shims\uv.exe" } else { ".local/share/mise/shims/uv" })
+        # Fallback lookup in Mise shim/bin locations
+        $MiseShimRel = if ($IsOSWindows) { "AppData\Local\mise\shims\uv.exe" } else { ".local/share/mise/shims/uv" }
+        $MiseShims   = Join-Path $env:CLAUSE_HOME $MiseShimRel
         if (Test-Path $MiseShims) {
             $UvExe = $MiseShims
+        } else {
+            Write-ClauseLog "uv is not available in PATH. Ensure 'mise install' has completed." -Level FATAL
+            throw "[ClauseOS] Missing required tool: uv"
         }
     }
 }
