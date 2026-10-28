@@ -26,6 +26,10 @@ elixir = "1.20.4-otp-29"
 gleam  = "1.19.2"
 rebar  = "3.27.3"
 
+# --- 2. PYTHON & PACKAGE RUNTIMES ---
+uv     = "0.13.6"
+
+
 [settings]
 auto_install = false
 experimental = false
