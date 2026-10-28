@@ -36,8 +36,10 @@ export def main [] {
     }
 
     let expanded_path = ($raw_entries 
-        | flat-map { |entry| $entry | split row ";" }
-        | flat-map { |entry| $entry | split row ":" }
+        | each { |entry| $entry | split row ";" }
+        | flatten
+        | each { |entry| $entry | split row ":" }
+        | flatten
         | where { |entry| ($entry | str trim) != "" }
         | each { |p| if ($p | path exists) { $p | path expand } else { $p } }
     )
@@ -45,6 +47,7 @@ export def main [] {
     let path_contains_bin = ($expanded_path | any { |p| $p == $local_bin })
     
     assert $path_contains_bin $"[Hermeticity Failure] Hermetic binary directory ($local_bin) not found in PATH:\n($expanded_path | to yaml)"
+    
 
     # 3. Assert platform application data isolation
     if $is_windows {
