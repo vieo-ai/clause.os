@@ -29,6 +29,7 @@ if ($IsOSWindows) {
 
     $env:CLAUSE_BIN_DIR   = Join-Path $WinLocal "Programs\bin"
     $env:CLAUSE_APPS_DIR  = Join-Path $WinLocal "Programs\apps"
+    $env:CLAUSE_CACHE_DIR = Join-Path $WinLocal "cache"
     $env:CLAUSE_TEMP_DIR  = Join-Path $WinLocal "Temp"
     $env:CLAUSE_LOGS_DIR  = Join-Path $WinLocal "Programs\logs"
 
@@ -46,6 +47,7 @@ if ($IsOSWindows) {
 
     $env:CLAUSE_BIN_DIR   = Join-Path $ClauseHome ".local\bin"
     $env:CLAUSE_APPS_DIR  = Join-Path $ClauseHome ".local\apps"
+    $env:CLAUSE_CACHE_DIR = $env:XDG_CACHE_HOME
     $env:CLAUSE_TEMP_DIR  = Join-Path $env:XDG_CACHE_HOME "tmp_bootstrap"
     $env:CLAUSE_LOGS_DIR  = Join-Path $ClauseHome ".local\logs"
 
@@ -54,6 +56,11 @@ if ($IsOSWindows) {
     $env:MISE_CONFIG_DIR = Join-Path $env:XDG_CONFIG_HOME "mise"
     $env:MISE_STATE_DIR  = Join-Path $env:XDG_STATE_HOME "mise"
     $env:MISE_CACHE_DIR  = Join-Path $env:XDG_CACHE_HOME "mise"
+}
+
+# Ensure the root cache directory exists on disk
+if (-not (Test-Path $env:CLAUSE_CACHE_DIR)) {
+    New-Item -ItemType Directory -Force -Path $env:CLAUSE_CACHE_DIR | Out-Null
 }
 
 # 4. Identity & Tool Confining
