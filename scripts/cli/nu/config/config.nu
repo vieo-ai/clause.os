@@ -1,18 +1,20 @@
 # scripts/cli/nu/config/config.nu - ClauseOS Nushell UI & Shell Overlay Config
-use mise.nu
 
-let mise_path = ($env.NU_CONFIG_DIR | path join "mise.nu")
-if ($mise_path | path exists) {
-    source $mise_path
-}
+# 1. Source Mise overlay using a static relative path resolved at parse time
+source ./mise.nu
 
-# Re-establish top priority for ClauseOS hermetic binary directory
+# 2. Re-establish top priority for ClauseOS hermetic binary directory
 let hermetic_bin = ($env.CLAUSE_BIN_DIR | path expand)
-$env.PATH = ($env.PATH | where { |p| ($p | path expand) != $hermetic_bin } | prepend $hermetic_bin)
+$env.PATH = (
+    $env.PATH 
+    | where { |p| if ($p | path exists) { ($p | path expand) != $hermetic_bin } else { $p != $hermetic_bin } } 
+    | prepend $hermetic_bin
+)
 
-$env.config = {
+# 3. Configure Shell Settings
+$env.config = ($env.config | merge {
     show_banner: false
     table: {
         mode: rounded
     }
-}
+})
