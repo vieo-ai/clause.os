@@ -252,7 +252,9 @@ if ((Test-Path $MiseBin) -and (Test-Path $NuBin)) {
     }
 }
 
-# Install Mise Dependencies (Userland Tools)
+# ==============================================================================
+# STAGE 2: TOOLCHAIN INSTALLATION (MISE)
+# ==============================================================================
 Write-ClauseLog "Finalizing ClauseOS toolchain installation..." -Level INFO
 & $MiseBin install
 if ($LASTEXITCODE -ne 0) {
@@ -260,8 +262,37 @@ if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
+# Ensure Mise shims/binaries are present in current session PATH for downstream recipes
+$ShimRelPath = if ($IsOSWindows) { "AppData\Local\mise\shims" } else { ".local/share/mise/shims" }
+$MiseShims   = Join-Path $env:CLAUSE_HOME $ShimRelPath
+
+if (Test-Path $MiseShims) {
+    $env:PATH = "$MiseShims;$env:PATH"
+}
+
 # ==============================================================================
-# STAGE 2: NUSHELL HANDOFF (CLI, CI/CD NON-INTERACTIVE, & TTY ROUTING)
+# STAGE 3: POST-MISE RUNTIME ENVIRONMENT (RENV) RECIPES
+# ==============================================================================
+$RenvDir = Join-Path $ProjectRoot "scripts/cli/pwsh/renv"
+
+$UnslothVersion = Get-TomlValue -Content $TomlContent -Key "unsloth"
+if ($UnslothVersion) {
+    $UnslothRecipe = Join-Path $RenvDir "installer_unsloth.ps1"
+    if (-not (Test-Path $UnslothRecipe)) {
+        Write-ClauseLog "Unsloth recipe missing at: $UnslothRecipe" -Level FATAL
+        throw "[ClauseOS] Error: Recipe not found at $UnslothRecipe"
+    }
+
+    Write-ClauseLog "Dispatching post-Mise runtime recipe for Unsloth (v$UnslothVersion)..." -Level INFO
+    & $UnslothRecipe -Version $UnslothVersion
+    if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+        Write-ClauseLog "Unsloth installer failed with exit code $LASTEXITCODE" -Level FATAL
+        exit $LASTEXITCODE
+    }
+}
+
+# ==============================================================================
+# STAGE 4: NUSHELL HANDOFF (CLI, CI/CD NON-INTERACTIVE, & TTY ROUTING)
 # ==============================================================================
 Set-Location -Path $ProjectRoot
 
