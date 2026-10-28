@@ -20,11 +20,28 @@ export def main [] {
     } else {
         $clause_home | path join ".local" "bin"
     }
-    let local_bin = ($env.CLAUSE_BIN_DIR? | default $default_bin | path expand)
-    let expanded_path = ($env.PATH | each { |p| $p | path expand })
+
+    # Ensure the directory actually exists so symlinks resolve identically
+    let target_bin = ($env.CLAUSE_BIN_DIR? | default $default_bin)
+    if not ($target_bin | path exists) {
+        mkdir $target_bin
+    }
+    let local_bin = ($target_bin | path expand)
+
+    # Normalize $env.PATH: handle both string (colon-separated) and list structures
+    let raw_path_list = if ($env.PATH | describe | str starts-with "list") {
+        $env.PATH
+    } else {
+        $env.PATH | split row (char esep)
+    }
+
+    let expanded_path = ($raw_path_list | each { |p| 
+        if ($p | path exists) { $p | path expand } else { $p }
+    })
+    
     let path_contains_bin = ($expanded_path | any { |p| $p == $local_bin })
     
-    assert $path_contains_bin $"[Hermeticity Failure] Hermetic binary directory ($local_bin) not found in PATH"
+    assert $path_contains_bin $"[Hermeticity Failure] Hermetic binary directory ($local_bin) not found in PATH:\n($expanded_path | to yaml)"
 
     # 3. Assert platform application data isolation
     if $is_windows {
