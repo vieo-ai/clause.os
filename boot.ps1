@@ -269,11 +269,12 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 # Ensure Mise shims/binaries are present in current session PATH for downstream recipes
-$ShimRelPath = if ($IsOSWindows) { "AppData\Local\mise\shims" } else { ".local/share/mise/shims" }
-$MiseShims   = Join-Path $env:CLAUSE_HOME $ShimRelPath
+$MiseShimRel = if ($IsOSWindows) { "AppData\Local\mise\shims" } else { ".local/share/mise/shims" }
+$MiseShims   = Join-Path $env:CLAUSE_HOME $MiseShimRel
 
 if (Test-Path $MiseShims) {
-    $env:PATH = "$MiseShims;$env:PATH"
+    $PathSep = if ($IsOSWindows) { ";" } else { ":" }
+    $env:PATH = "$MiseShims$PathSep$env:PATH"
 }
 
 # ==============================================================================
