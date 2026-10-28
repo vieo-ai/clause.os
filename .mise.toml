@@ -17,6 +17,7 @@ _.path = [
     "{{ env.CLAUSE_APPS_DIR }}/apm",
     "{{ env.CLAUSE_APPS_DIR }}/vscode/bin",
     "{{ env.CLAUSE_APPS_DIR }}/pulumi",
+    "{{ env.CLAUSE_APPS_DIR }}/unsloth/bin",
 ]
 
 [tools]
