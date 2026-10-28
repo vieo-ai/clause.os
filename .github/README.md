@@ -31,6 +31,15 @@
 
 ---
 
+> ### 🚧 Active Development & Architectural Stabilization
+> **ClauseOS is currently in rapid, heavy active development (`v0.1.5-dev`).**
+> 
+> * The foundational hermetic substrate, two-tier runtime, dynamic GPU auto-detection, and base toolchains are fully operational and passing 100% green CI/CD across Windows, Linux, and macOS.
+> * Advanced higher-order subsystems—including complete HashiStack daemon topologies (`nomad`, `consul`, `vault`), the `cx vm` hypervisor bridge, and the `.enterprise/` multi-agent organization schemas—are actively being stabilized and wired into the command plane.
+> * Certain declared commands, modules, and configurations may evolve or undergo refactoring between milestone snapshots. Please refer to [TASK.md](TASK.md) and the [ADRs](docs/adr/) for active tracking.
+
+---
+
 ## 🧭 Overview
 
 **ClauseOS** is a bare-metal, self-contained operating system environment architecture designed to execute directly on the host machine while operating entirely within a hermetically confined profile directory (`.home/`). By redirecting `$HOME`, `$USERPROFILE`, and standard OS directory structures strictly into this localized root, ClauseOS eliminates host-level package managers, path pollution, global registry tampering, and configuration drift.
