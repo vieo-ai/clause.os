@@ -66,7 +66,6 @@ $env.NU_CONFIG_DIR     = ($project_root | path join "scripts" "cli" "nu" "config
 # 4. PATH Injection (Stage 0 Binaries Only)
 let bin_dir = ($env.CLAUSE_BIN_DIR | path expand)
 
-# Defensively decompose raw PATH entries across both list structures and cross-shell delimiter artifacts (; vs :)
 let raw_paths = if ($env.PATH | describe | str starts-with "list") {
     $env.PATH
 } else {
@@ -74,8 +73,10 @@ let raw_paths = if ($env.PATH | describe | str starts-with "list") {
 }
 
 let current_paths = ($raw_paths
-    | flat-map { |p| $p | split row ";" }
-    | flat-map { |p| $p | split row ":" }
+    | each { |p| $p | split row ";" }
+    | flatten
+    | each { |p| $p | split row ":" }
+    | flatten
     | where { |p| ($p | str trim) != "" }
 )
 
