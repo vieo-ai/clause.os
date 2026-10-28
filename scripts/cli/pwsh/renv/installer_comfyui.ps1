@@ -223,8 +223,36 @@ if ($LASTEXITCODE -ne 0) { throw "PyTorch installation failed with exit code $LA
 $ReqFile = Join-Path $SourceDir "requirements.txt"
 if (Test-Path $ReqFile) {
     Write-ClauseLog "Installing ComfyUI requirements..." -Level INFO
-    & $UvExe pip install --python $PythonBin -r $ReqFile
-    if ($LASTEXITCODE -ne 0) { throw "ComfyUI requirements installation failed with code $LASTEXITCODE" }
+
+    $IsMacIntel = $false
+    if ($IsOSMac) {
+        $Arch = (uname -m 2>$null).Trim()
+        if ($Arch -eq "x86_64") {
+            $IsMacIntel = $true
+        }
+    }
+
+    if ($IsMacIntel) {
+        Write-ClauseLog "Intel Mac (x86_64) detected: Filtering non-x86_64 wheels (e.g. comfy-angle)..." -Level WARN
+        
+        # Filter out comfy-angle from requirements for macOS x86_64 runner compatibility
+        $FilteredReq = Join-Path $env:CLAUSE_TEMP_DIR "comfy_req_mac_intel_$PID.txt"
+        Get-Content -Path $ReqFile | Where-Object { 
+            $_ -notmatch '^\s*comfy-angle'
+        } | Set-Content -LiteralPath $FilteredReq -Encoding UTF8
+
+        try {
+            & $UvExe pip install --python $PythonBin -r $FilteredReq
+            if ($LASTEXITCODE -ne 0) { throw "ComfyUI requirements installation failed with code $LASTEXITCODE" }
+        } finally {
+            if (Test-Path $FilteredReq) {
+                Remove-Item -LiteralPath $FilteredReq -Force -ErrorAction SilentlyContinue
+            }
+        }
+    } else {
+        & $UvExe pip install --python $PythonBin -r $ReqFile
+        if ($LASTEXITCODE -ne 0) { throw "ComfyUI requirements installation failed with code $LASTEXITCODE" }
+    }
 }
 
 # ==============================================================================
