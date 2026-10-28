@@ -25,6 +25,7 @@ if $is_windows {
 
     $env.CLAUSE_BIN_DIR   = ($win_local | path join "Programs" "bin")
     $env.CLAUSE_APPS_DIR  = ($win_local | path join "Programs" "apps")
+    $env.CLAUSE_CACHE_DIR = ($win_local | path join "cache")
     $env.CLAUSE_TEMP_DIR  = ($win_local | path join "Temp")
     $env.CLAUSE_LOGS_DIR  = ($win_local | path join "Programs" "logs")
 
@@ -40,6 +41,7 @@ if $is_windows {
 
     $env.CLAUSE_BIN_DIR   = ($clause_home | path join ".local" "bin")
     $env.CLAUSE_APPS_DIR  = ($clause_home | path join ".local" "apps")
+    $env.CLAUSE_CACHE_DIR = $env.XDG_CACHE_HOME
     $env.CLAUSE_TEMP_DIR  = ($clause_home | path join ".cache" "tmp_bootstrap")
     $env.CLAUSE_LOGS_DIR  = ($clause_home | path join ".local" "logs")
 
@@ -47,6 +49,11 @@ if $is_windows {
     $env.MISE_CONFIG_DIR = ($env.XDG_CONFIG_HOME | path join "mise")
     $env.MISE_STATE_DIR  = ($env.XDG_STATE_HOME | path join "mise")
     $env.MISE_CACHE_DIR  = ($env.XDG_CACHE_HOME | path join "mise")
+}
+
+# Ensure the root cache directory exists on disk
+if not ($env.CLAUSE_CACHE_DIR | path exists) {
+    mkdir $env.CLAUSE_CACHE_DIR
 }
 
 # 3. Dedicated Config and Identity Routing
