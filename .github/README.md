@@ -271,6 +271,41 @@ ClauseOS includes an enterprise agent harness designed to run autonomous develop
 
 ---
 
+## 🌐 BEAM Distributed Backplane & Gleam Orchestration
+
+ClauseOS departs from traditional infrastructure stacks by positioning the **BEAM VM** as the primary distributed backplane and **Gleam** as the core orchestration language:
+
+- **Soft Real-Time OTP Actors:** Cluster membership, node telemetry, and agent mailboxes are modeled as typed Gleam OTP actors (`gleam_otp`). Failure in a worker node or hardware process is isolated to its supervision tree branch without triggering global cluster churn.
+- **Nomad Workload Scheduler:** Workloads are dispatched to Nomad via typed Gleam HTTP clients. Bare-metal binaries, local GPU models, and containerized micro-services execute via Nomad's `raw_exec` and container drivers.
+- **Bare Metal as a Service (Pixiecore & iPXE):** The Gleam orchestrator coordinates with Pixiecore to netboot unprovisioned physical metal directly into memory using Packer-generated rootfs tarballs, automatically admitting machines into the Consul mesh.
+- **Ephemeral Kubernetes (k3s):** Kubernetes is scheduled as a guest workload on Nomad inside disposable micro-instances (`cx vm`) only when tenants require standard K8s manifests.
+
+---
+
+## 🧬 Seax Carrier Language & Multi-Target Transpiler
+
+**Seax** (`.cx`) is a carrier-class systems programming language designed for transmedia operations, autonomous agents, and real-time hardware orchestration:
+
+- **Dart-Inspired Syntax:** Object-oriented class and interface ergonomics inspired by Dart and C#, with dependency injection and lifecycle hooks influenced by Laravel and Fowler's enterprise patterns.
+- **Transmedia & Actor Keywords:** First-class language keywords for media protocols (`audio`, `video`, `midi`, `ndi`, `osc`, `smpte`, `dante`) and distributed agents (`agent`, `actor`, `telcom`, `broadcast`, `container`, `process`).
+- **Monkey X Multi-Target Transpiler:** The Rust-based compiler (`seaxc`) lowers code directly to the optimal target platform without virtual-machine emulation:
+  - `target: beam` $\rightarrow$ Compiles to Core Erlang AST and `.beam` bytecode for distributed cluster orchestration.
+  - `target: native-dsp` $\rightarrow$ Compiles to optimized C++20 / Rust NIF routines linked with JUCE or native hardware SDKs.
+  - `target: client` $\rightarrow$ Compiles to TypeScript and WebAssembly for interactive agent dashboards and web control planes.
+- **Agent-as-a-Folder Architecture:** A complete agent or operational department is packaged as an isolated directory containing its coordinator (`agent.cx`), sub-agents (`team/`), capabilities (`skills/`), embedded MCP servers (`mcp/`), and target manifest (`package.seax`).
+
+---
+
+## 🔗 RinG: Rust-in-Gleam Native Bridge
+
+**RinG** provides high-performance, type-safe interoperability between Rust algorithms and the Gleam/BEAM runtime, inspired by Rinf (Rust in Flutter):
+
+- **Automated Code Generation:** Compiles shared contract schemas into Gleam type definitions and matching Rust FFI handlers, eliminating manual Erlang term format marshalling.
+- **Scheduler Safety:** Automatically routes fast, non-blocking calls directly to Rustler NIFs, while steering heavy CPU tasks, SIMD processing, and streaming media buffers to BEAM `DirtyCpu`/`DirtyIo` schedulers to prevent scheduler poisoning.
+- **OTP Actors:** Wraps native Rust worker threads as standard `gleam_otp` supervised actors with typed mailboxes.
+
+---
+
 ## ⚡ Hardware Acceleration Matrix
 
 ClauseOS dynamically queries the host hardware at runtime to resolve and inject the correct binary index without requiring host driver installations:
