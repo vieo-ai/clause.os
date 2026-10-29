@@ -37,7 +37,6 @@ consul    = "2.1.0"
 vault     = "2.2.1"
 boundary  = "0.21.3"
 packer    = "1.16.2"
-ansible   = "14.5.0"
 
 [settings]
 auto_install = false
