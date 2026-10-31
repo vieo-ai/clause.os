@@ -1,22 +1,39 @@
-# scripts/cli/nu/commands/plugin_sync.nu
-# ClauseOS Git Subtree Plugin Synchronizer
+# scripts/cli/nu/commands/plugin.nu
+# ClauseOS Git Subtree Plugin Manager
 
 def get-prefix [name: string] {
-    $".mise/plugins/($name)"
+    # CRITICAL: git-subtree requires pure forward slashes and no leading './'
+    $"plugins/mise-($name)"
 }
 
-# Add a new plugin repository as a git subtree
-export def "main add" [
-    name: string,         # Plugin name (e.g. 'lemonade')
-    repo_url: string,     # Git remote repository URL
-    --branch: string = "main" # Remote branch
-] {
-    let prefix = (get-prefix $name)
-    print $"(ansi cyan)[ClauseOS Subtree](ansi reset) Attaching ($name) from ($repo_url)..."
+def ensure-clean-tree [] {
+    let status = (^git status --porcelain | str trim)
+    if ($status | is-not-empty) {
+        print $"(ansi red)Error:(ansi reset) Working directory is dirty. Commit or stash changes before running subtree operations."
+        exit 1
+    }
+}
 
-    # 1. Add remote if it doesn't already exist
-    let remotes = (^git remote | lines)
+def add [
+    name: string,
+    repo_url: string,
+    branch: string = "main"
+] {
+    ensure-clean-tree
+
+    let prefix = (get-prefix $name)
     let remote_name = $"plugin-($name)"
+
+    # Hard safety check to prevent root clobbering
+    if ($prefix | is-empty) or ($prefix == ".") or ($prefix == "/") {
+        print $"(ansi red)Fatal:(ansi reset) Invalid target prefix '($prefix)'. Aborting to protect repository root."
+        exit 1
+    }
+
+    print $"(ansi cyan)[ClauseOS Subtree](ansi reset) Target Directory: ($prefix)"
+    print $"(ansi cyan)[ClauseOS Subtree](ansi reset) Remote: ($remote_name) -> ($repo_url)"
+
+    let remotes = (^git remote | lines)
     if not ($remote_name in $remotes) {
         ^git remote add -f $remote_name $repo_url
     } else {
@@ -24,59 +41,94 @@ export def "main add" [
         ^git fetch $remote_name
     }
 
-    # 2. Add subtree with squash
+    # --prefix must be passed as two separate arguments, never --prefix=...
     try {
         ^git subtree add --prefix $prefix $remote_name $branch --squash -m $"feat(plugins): import ($name) plugin subtree"
         print $"(ansi green)Success:(ansi reset) Plugin ($name) mounted at ($prefix)"
     } catch { |err|
-        print $"(ansi red)Error:(ansi reset) Failed to add subtree. Ensure working tree is clean."
+        print $"(ansi red)Error:(ansi reset) git subtree add failed."
+        print $err
     }
 }
 
-# Push changes from local monorepo back to the standalone plugin repository
-export def "main push" [
-    name: string,         # Plugin name (e.g. 'lemonade')
-    --remote: string,     # Optional remote name or URL
-    --branch: string = "main" # Remote target branch
+def push [
+    name: string,
+    remote: string = "",
+    branch: string = "main"
 ] {
     let prefix = (get-prefix $name)
     let target = if ($remote | is-empty) { $"plugin-($name)" } else { $remote }
 
-    print $"(ansi cyan)[ClauseOS Subtree](ansi reset) Pushing local commits for ($prefix) to ($target)/($branch)..."
+    if not ($prefix | path exists) {
+        print $"(ansi red)Error:(ansi reset) Prefix ($prefix) does not exist."
+        exit 1
+    }
 
+    print $"(ansi cyan)[ClauseOS Subtree](ansi reset) Pushing commits from ($prefix) to ($target)/($branch)..."
     try {
         ^git subtree push --prefix $prefix $target $branch
         print $"(ansi green)Success:(ansi reset) ($name) plugin upstream is in sync."
     } catch { |err|
-        print $"(ansi red)Error:(ansi reset) Failed to push subtree to ($target)."
+        print $"(ansi red)Error:(ansi reset) git subtree push failed."
+        print $err
     }
 }
 
-# Pull latest commits from the standalone repository into the monorepo
-export def "main pull" [
-    name: string,         # Plugin name (e.g. 'lemonade')
-    --remote: string,     # Optional remote name or URL
-    --branch: string = "main" # Remote source branch
+def pull [
+    name: string,
+    remote: string = "",
+    branch: string = "main"
 ] {
+    ensure-clean-tree
+
     let prefix = (get-prefix $name)
     let target = if ($remote | is-empty) { $"plugin-($name)" } else { $remote }
 
-    print $"(ansi cyan)[ClauseOS Subtree](ansi reset) Pulling latest commits from ($target)/($branch) into ($prefix)..."
-
+    print $"(ansi cyan)[ClauseOS Subtree](ansi reset) Pulling commits from ($target)/($branch) into ($prefix)..."
     try {
         ^git subtree pull --prefix $prefix $target $branch --squash -m $"chore(plugins): sync ($name) from upstream"
         print $"(ansi green)Success:(ansi reset) ($prefix) updated from ($target)."
     } catch { |err|
-        print $"(ansi red)Error:(ansi reset) Failed to pull subtree."
+        print $"(ansi red)Error:(ansi reset) git subtree pull failed."
+        print $err
     }
 }
 
-# Default entry: display instructions or status
-export def main [] {
-    print "ClauseOS Plugin Subtree Manager"
-    print "--------------------------------"
-    print "Usage:"
-    print "  cx plugin add <name> <repo-url>   - Add standalone repo as local subtree"
-    print "  cx plugin push <name>             - Push local modifications to standalone repo"
-    print "  cx plugin pull <name>             - Pull updates from standalone repo"
+def main [action?: string, ...args: string] {
+    match $action {
+        "add" => {
+            if ($args | length) < 2 {
+                print "Usage: cx plugin add <name> <repo-url> [branch]"
+                return
+            }
+            let branch = if ($args | length) >= 3 { $args | get 2 } else { "main" }
+            add ($args | get 0) ($args | get 1) $branch
+        },
+        "push" => {
+            if ($args | length) < 1 {
+                print "Usage: cx plugin push <name> [remote] [branch]"
+                return
+            }
+            let remote = if ($args | length) >= 2 { $args | get 1 } else { "" }
+            let branch = if ($args | length) >= 3 { $args | get 2 } else { "main" }
+            push ($args | get 0) $remote $branch
+        },
+        "pull" => {
+            if ($args | length) < 1 {
+                print "Usage: cx plugin pull <name> [remote] [branch]"
+                return
+            }
+            let remote = if ($args | length) >= 2 { $args | get 1 } else { "" }
+            let branch = if ($args | length) >= 3 { $args | get 2 } else { "main" }
+            pull ($args | get 0) $remote $branch
+        },
+        _ => {
+            print "ClauseOS Plugin Subtree Manager"
+            print "--------------------------------"
+            print "Usage:"
+            print "  cx plugin add <name> <repo-url> [branch]  - Mount standalone repo as subtree"
+            print "  cx plugin push <name> [remote] [branch]   - Push subtree commits to standalone repo"
+            print "  cx plugin pull <name> [remote] [branch]   - Pull updates from standalone repo"
+        }
+    }
 }
