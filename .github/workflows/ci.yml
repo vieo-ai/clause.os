@@ -97,7 +97,7 @@ jobs:
         shell: powershell
         run: |
           set CI=true
-          call .\cx.ps1
+          .\cx.ps1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          call .\cx.ps1 test
+          .\cx.ps1 test
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
