@@ -1,121 +1,176 @@
 # scripts/cli/nu/commands/plugin.nu
-# ClauseOS Git Subtree Plugin Manager
+# ClauseOS Canonical Git Subtree Plugin Manager
 
 def get-prefix [name: string] {
     $"plugins/mise-($name)"
 }
 
-def ensure-clean-tree [] {
-    let status = (^git status --porcelain | str trim)
-    if ($status | is-not-empty) {
-        print $"(ansi red)Error:(ansi reset) Working directory is dirty. Commit or stash changes before running subtree operations."
+def resolve-repo-root [] {
+    let check = (^git rev-parse --is-inside-work-tree | complete)
+    if $check.exit_code != 0 {
+        print $"(ansi red)Error:(ansi reset) Current directory is not a Git repository. Please run from inside your repository root."
         exit 1
     }
+    ^git rev-parse --show-toplevel | str trim
 }
 
-def add [
-    name: string,
-    repo_url: string,
-    branch: string = "main"
-] {
-    ensure-clean-tree
+def resolve-upstream-hash [remote_url: string, branch: string] {
+    print $"(ansi cyan)Fetching latest commit hash from ($remote_url) \(($branch)\)...(ansi reset)"
+    
+    mut target_branch = $branch
+    mut ls_output = (^git ls-remote $remote_url $"refs/heads/($target_branch)" | complete)
 
-    let prefix = (get-prefix $name)
-    let remote_name = $"plugin-($name)"
+    if ($ls_output.stdout | str trim | is-empty) {
+        # Fallback between main and master if the initial branch does not exist
+        $target_branch = if $branch == "main" { "master" } else { "main" }
+        print $"(ansi yellow)Branch '($branch)' not found. Checking '($target_branch)' branch...(ansi reset)"
+        $ls_output = (^git ls-remote $remote_url $"refs/heads/($target_branch)" | complete)
+    }
 
-    if ($prefix | is-empty) or ($prefix == ".") or ($prefix == "/") {
-        print $"(ansi red)Fatal:(ansi reset) Invalid target prefix '($prefix)'. Aborting to protect repository root."
+    if ($ls_output.stdout | str trim | is-empty) {
+        print $"(ansi red)Error:(ansi reset) Unable to reach remote repository or find branch '($target_branch)'."
         exit 1
     }
 
-    print $"(ansi cyan)[ClauseOS Subtree](ansi reset) Target Directory: ($prefix)"
-    print $"(ansi cyan)[ClauseOS Subtree](ansi reset) Remote: ($remote_name) -> ($repo_url)"
+    let full_hash = ($ls_output.stdout | split row -r '\s+' | get 0)
+    let short_hash = ($full_hash | str substring 0..6)
+    
+    { branch: $target_branch, hash: $short_hash }
+}
 
-    let remotes = (^git remote | lines)
-    if not ($remote_name in $remotes) {
-        ^git remote add -f $remote_name $repo_url
-    } else {
-        ^git remote set-url $remote_name $repo_url
-        ^git fetch $remote_name
+def is-prefix-tracked [prefix: string] {
+    if not ($prefix | path exists) {
+        return false
+    }
+    let tracked = (^git ls-files -- $prefix | complete)
+    ($tracked.stdout | str trim | is-not-empty)
+}
+
+# 1. ADD: Mounts a new subtree
+export def add [
+    name: string,
+    remote_url: string,
+    branch: string = "main",
+    commit_msg: string = ""
+] {
+    let repo_root = (resolve-repo-root)
+    cd $repo_root
+
+    let prefix = (get-prefix $name)
+    if (is-prefix-tracked $prefix) {
+        print $"(ansi red)Error:(ansi reset) Subtree prefix '($prefix)' already exists and is tracked. Use 'pull' to update."
+        exit 1
     }
 
-    # Use pure string without subexpression parentheses:
-    let commit_msg = $"feat - import ($name) plugin subtree"
+    let upstream = (resolve-upstream-hash $remote_url $branch)
+    let target_branch = $upstream.branch
+    let upstream_hash = $upstream.hash
+
+    let msg = if ($commit_msg | is-not-empty) {
+        $"($commit_msg) \(upstream commit: ($upstream_hash)\)"
+    } else {
+        $"🌱 add: ($prefix) subtree from ($remote_url) @ ($upstream_hash)"
+    }
+
+    print $"(ansi cyan)Subtree prefix '($prefix)' not detected in Git. Adding subtree...(ansi reset)"
 
     let args = [
         "subtree", "add",
-        "--prefix", $prefix,
-        $remote_name, $branch,
+        $"--prefix=($prefix)",
+        $remote_url,
+        $target_branch,
         "--squash",
-        "-m", $commit_msg
+        "-m", $msg
     ]
 
-    try {
-        ^git ...$args
-        print $"(ansi green)Success:(ansi reset) Plugin ($name) mounted at ($prefix)"
-    } catch { |err|
-        print $"(ansi red)Error:(ansi reset) git subtree add failed."
-        print $err
+    let result = (^git ...$args | complete)
+    if $result.exit_code == 0 {
+        print $"(ansi green)Successfully added subtree at '($prefix)' \(commit: ($upstream_hash)\).(ansi reset)"
+    } else {
+        print $"(ansi red)Failed to add git subtree.(ansi reset)"
+        print $result.stderr
+        exit 1
     }
 }
 
-def push [
+# 2. PULL: Updates existing subtree from upstream
+export def pull [
     name: string,
-    remote: string = "",
-    branch: string = "main"
+    remote_url: string,
+    branch: string = "main",
+    commit_msg: string = ""
 ] {
-    let prefix = (get-prefix $name)
-    let target = if ($remote | is-empty) { $"plugin-($name)" } else { $remote }
+    let repo_root = (resolve-repo-root)
+    cd $repo_root
 
-    if not ($prefix | path exists) {
-        print $"(ansi red)Error:(ansi reset) Prefix ($prefix) does not exist."
+    let prefix = (get-prefix $name)
+    if not (is-prefix-tracked $prefix) {
+        print $"(ansi red)Error:(ansi reset) Subtree prefix '($prefix)' is not tracked. Use 'add' to import it first."
         exit 1
     }
 
-    print $"(ansi cyan)[ClauseOS Subtree](ansi reset) Pushing commits from ($prefix) to ($target)/($branch)..."
-    
+    let upstream = (resolve-upstream-hash $remote_url $branch)
+    let target_branch = $upstream.branch
+    let upstream_hash = $upstream.hash
+
+    let msg = if ($commit_msg | is-not-empty) {
+        $"($commit_msg) \(upstream commit: ($upstream_hash)\)"
+    } else {
+        $"🌱 update: ($prefix) subtree from ($remote_url) @ ($upstream_hash)"
+    }
+
+    print $"(ansi cyan)Subtree prefix '($prefix)' found. Pulling latest updates from upstream...(ansi reset)"
+
     let args = [
-        "subtree", "push",
-        "--prefix", $prefix,
-        $target, $branch
+        "subtree", "pull",
+        $"--prefix=($prefix)",
+        $remote_url,
+        $target_branch,
+        "--squash",
+        "-m", $msg
     ]
 
-    try {
-        ^git ...$args
-        print $"(ansi green)Success:(ansi reset) ($name) plugin upstream is in sync."
-    } catch { |err|
-        print $"(ansi red)Error:(ansi reset) git subtree push failed."
-        print $err
+    let result = (^git ...$args | complete)
+    if $result.exit_code == 0 {
+        print $"(ansi green)Successfully updated subtree at '($prefix)' \(commit: ($upstream_hash)\).(ansi reset)"
+    } else {
+        print $"(ansi red)Failed to pull updates for git subtree.(ansi reset)"
+        print $result.stderr
+        exit 1
     }
 }
 
-def pull [
+# 3. PUSH: Pushes local commits back to the standalone repository
+export def push [
     name: string,
-    remote: string = "",
+    remote_url: string,
     branch: string = "main"
 ] {
-    ensure-clean-tree
+    let repo_root = (resolve-repo-root)
+    cd $repo_root
 
     let prefix = (get-prefix $name)
-    let target = if ($remote | is-empty) { $"plugin-($name)" } else { $remote }
-    let commit_msg = $"chore - sync ($name) from upstream"
+    if not (is-prefix-tracked $prefix) {
+        print $"(ansi red)Error:(ansi reset) Subtree '($prefix)' is not tracked in this repository."
+        exit 1
+    }
 
-    print $"(ansi cyan)[ClauseOS Subtree](ansi reset) Pulling commits from ($target)/($branch) into ($prefix)..."
-    
+    print $"(ansi cyan)[ClauseOS Subtree](ansi reset) Pushing local commits for ($prefix) to ($remote_url) \(($branch)\)..."
+
     let args = [
-        "subtree", "pull",
-        "--prefix", $prefix,
-        $target, $branch,
-        "--squash",
-        "-m", $commit_msg
+        "subtree", "push",
+        $"--prefix=($prefix)",
+        $remote_url,
+        $branch
     ]
 
-    try {
-        ^git ...$args
-        print $"(ansi green)Success:(ansi reset) ($prefix) updated from ($target)."
-    } catch { |err|
-        print $"(ansi red)Error:(ansi reset) git subtree pull failed."
-        print $err
+    let result = (^git ...$args | complete)
+    if $result.exit_code == 0 {
+        print $"(ansi green)Successfully pushed commits from '($prefix)' to ($remote_url).(ansi reset)"
+    } else {
+        print $"(ansi red)Failed to push subtree commits.(ansi reset)"
+        print $result.stderr
+        exit 1
     }
 }
 
@@ -123,37 +178,37 @@ def main [action?: string, ...args: string] {
     match $action {
         "add" => {
             if ($args | length) < 2 {
-                print "Usage: cx plugin add <name> <repo-url> [branch]"
+                print "Usage: cx plugin add <name> <remote-url> [branch] [commit-message]"
                 return
             }
             let branch = if ($args | length) >= 3 { $args | get 2 } else { "main" }
-            add ($args | get 0) ($args | get 1) $branch
-        },
-        "push" => {
-            if ($args | length) < 1 {
-                print "Usage: cx plugin push <name> [remote] [branch]"
-                return
-            }
-            let remote = if ($args | length) >= 2 { $args | get 1 } else { "" }
-            let branch = if ($args | length) >= 3 { $args | get 2 } else { "main" }
-            push ($args | get 0) $remote $branch
+            let msg    = if ($args | length) >= 4 { $args | get 3 } else { "" }
+            add ($args | get 0) ($args | get 1) $branch $msg
         },
         "pull" => {
-            if ($args | length) < 1 {
-                print "Usage: cx plugin pull <name> [remote] [branch]"
+            if ($args | length) < 2 {
+                print "Usage: cx plugin pull <name> <remote-url> [branch] [commit-message]"
                 return
             }
-            let remote = if ($args | length) >= 2 { $args | get 1 } else { "" }
             let branch = if ($args | length) >= 3 { $args | get 2 } else { "main" }
-            pull ($args | get 0) $remote $branch
+            let msg    = if ($args | length) >= 4 { $args | get 3 } else { "" }
+            pull ($args | get 0) ($args | get 1) $branch $msg
+        },
+        "push" => {
+            if ($args | length) < 2 {
+                print "Usage: cx plugin push <name> <remote-url> [branch]"
+                return
+            }
+            let branch = if ($args | length) >= 3 { $args | get 2 } else { "main" }
+            push ($args | get 0) ($args | get 1) $branch
         },
         _ => {
             print "ClauseOS Plugin Subtree Manager"
             print "--------------------------------"
             print "Usage:"
-            print "  cx plugin add <name> <repo-url> [branch]  - Mount standalone repo as subtree"
-            print "  cx plugin push <name> [remote] [branch]   - Push subtree commits to standalone repo"
-            print "  cx plugin pull <name> [remote] [branch]   - Pull updates from standalone repo"
+            print "  cx plugin add  <name> <remote-url> [branch] [msg] - Add a new plugin subtree"
+            print "  cx plugin pull <name> <remote-url> [branch] [msg] - Pull upstream changes into subtree"
+            print "  cx plugin push <name> <remote-url> [branch]       - Push local subtree commits upstream"
         }
     }
 }
