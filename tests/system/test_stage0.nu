@@ -17,7 +17,7 @@ export def main [] {
     let local_bin = ($env.CLAUSE_BIN_DIR? | default $default_bin)
 
     # List of expected Stage 0 executables
-    let required_binaries = ["mise", "just", "nu"]
+    let required_binaries = ["mise", "nu"]
 
     for $bin in $required_binaries {
         let bin_path = ($local_bin | path join $"($bin)($exe_ext)")
