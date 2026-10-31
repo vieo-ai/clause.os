@@ -1,10 +1,9 @@
 [bootstrap]
-pwsh = "7.6.7"
+mise = "2026.10.15"
+nu   = "0.116.1"
 
 [stage0]
-mise = "2026.10.15"
 just = "1.59.0"
-nu   = "0.116.1"
 pulumi = "3.272.0"
 
 [stage1]
