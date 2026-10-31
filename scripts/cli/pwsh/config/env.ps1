@@ -38,6 +38,7 @@ if ($IsOSWindows) {
     $env:MISE_CONFIG_DIR = Join-Path $WinRoaming "mise"
     $env:MISE_STATE_DIR  = Join-Path $WinLocal "mise\state"
     $env:MISE_CACHE_DIR  = Join-Path $WinLocal "mise\cache"
+    $env:GH_CONFIG_DIR   = Join-Path $WinRoaming "GitHub CLI"
 } else {
     # POSIX XDG Standards inside .home
     $env:XDG_CONFIG_HOME = Join-Path $ClauseHome ".config"
@@ -56,19 +57,38 @@ if ($IsOSWindows) {
     $env:MISE_CONFIG_DIR = Join-Path $env:XDG_CONFIG_HOME "mise"
     $env:MISE_STATE_DIR  = Join-Path $env:XDG_STATE_HOME "mise"
     $env:MISE_CACHE_DIR  = Join-Path $env:XDG_CACHE_HOME "mise"
+    $env:GH_CONFIG_DIR   = Join-Path $env:XDG_CONFIG_HOME "gh"
 }
 
-# Ensure the root cache directory exists on disk
-if (-not (Test-Path $env:CLAUSE_CACHE_DIR)) {
-    New-Item -ItemType Directory -Force -Path $env:CLAUSE_CACHE_DIR | Out-Null
+# 4. Invariant Directories & Hermetic SSH Containment
+$SshDir = Join-Path $ClauseHome ".ssh"
+@( $env:CLAUSE_CACHE_DIR, $env:CLAUSE_BIN_DIR, $SshDir ) | ForEach-Object {
+    if (-not (Test-Path $_)) {
+        New-Item -ItemType Directory -Force -Path $_ | Out-Null
+    }
 }
 
-# 4. Identity & Tool Confining
+$SshConfig  = Join-Path $SshDir "config"
+$KnownHosts = Join-Path $SshDir "known_hosts"
+
+# Format with forward slashes for OpenSSH argument parsing
+$SshConfigFwd  = $SshConfig.Replace('\', '/')
+$KnownHostsFwd = $KnownHosts.Replace('\', '/')
+
+if (Test-Path $SshConfig) {
+    $env:GIT_SSH_COMMAND = "ssh -F '$SshConfigFwd' -o UserKnownHostsFile='$KnownHostsFwd'"
+} else {
+    $KeyEd  = (Join-Path $SshDir "id_ed25519").Replace('\', '/')
+    $KeyRsa = (Join-Path $SshDir "id_rsa").Replace('\', '/')
+    $env:GIT_SSH_COMMAND = "ssh -i '$KeyEd' -i '$KeyRsa' -o UserKnownHostsFile='$KnownHostsFwd'"
+}
+
+# 5. Identity & Tool Routing
 $env:GIT_CONFIG_GLOBAL = Join-Path $ClauseHome ".gitconfig"
-$env:GH_CONFIG_DIR     = if ($IsOSWindows) { Join-Path $env:APPDATA "GitHub CLI" } else { Join-Path $env:XDG_CONFIG_HOME "gh" }
 $env:NU_CONFIG_DIR     = Join-Path $ProjectRoot "scripts\cli\nu\config"
+$env:PULUMI_HOME       = Join-Path $ClauseHome ".pulumi"
 
-# 5. Global PATH Management (Prepend Stage 0 Binaries Only)
+# 6. Global PATH Management (Prepend Stage 0 Binaries Only)
 if ($env:PATH -notlike "*$($env:CLAUSE_BIN_DIR)*") {
     $env:PATH = "$($env:CLAUSE_BIN_DIR);$env:PATH"
 }
