@@ -94,8 +94,8 @@ jobs:
       # --- Windows Test & Systems Assertion Suite ---
       - name: Test ClauseOS Stage 0 Boot & Assertion Suite (Windows)
         if: runner.os == 'Windows'
-        shell: cmd
+        shell: powershell
         run: |
           set CI=true
-          call .\cx.bat || exit /b 1
-          call .\cx.bat test || exit /b 1
+          call .\cx.ps1 || exit /b 1
+          call .\cx.ps1 test || exit /b 1
