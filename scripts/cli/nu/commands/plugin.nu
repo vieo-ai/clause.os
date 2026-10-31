@@ -165,8 +165,14 @@ export def push [
     ]
 
     let result = (^git ...$args | complete)
+    let combined_output = $"($result.stdout)\n($result.stderr)"
+
     if $result.exit_code == 0 {
-        print $"(ansi green)Successfully pushed commits from '($prefix)' to ($remote_url).(ansi reset)"
+        if ($combined_output =~ "(?i)everything up-to-date") {
+            print $"(ansi yellow)Notice:(ansi reset) '($prefix)' is already in sync with ($remote_url) \(($branch)\)."
+        } else {
+            print $"(ansi green)Successfully pushed commits from '($prefix)' to ($remote_url).(ansi reset)"
+        }
     } else {
         print $"(ansi red)Failed to push subtree commits.(ansi reset)"
         print $result.stderr
