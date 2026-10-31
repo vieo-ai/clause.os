@@ -2,7 +2,6 @@
 # ClauseOS Git Subtree Plugin Manager
 
 def get-prefix [name: string] {
-    # CRITICAL: git-subtree requires pure forward slashes and no leading './'
     $"plugins/mise-($name)"
 }
 
@@ -24,7 +23,6 @@ def add [
     let prefix = (get-prefix $name)
     let remote_name = $"plugin-($name)"
 
-    # Hard safety check to prevent root clobbering
     if ($prefix | is-empty) or ($prefix == ".") or ($prefix == "/") {
         print $"(ansi red)Fatal:(ansi reset) Invalid target prefix '($prefix)'. Aborting to protect repository root."
         exit 1
@@ -41,9 +39,19 @@ def add [
         ^git fetch $remote_name
     }
 
-    # --prefix must be passed as two separate arguments, never --prefix=...
+    # Use pure string without subexpression parentheses:
+    let commit_msg = $"feat - import ($name) plugin subtree"
+
+    let args = [
+        "subtree", "add",
+        "--prefix", $prefix,
+        $remote_name, $branch,
+        "--squash",
+        "-m", $commit_msg
+    ]
+
     try {
-        ^git subtree add --prefix $prefix $remote_name $branch --squash -m $"feat(plugins): import ($name) plugin subtree"
+        ^git ...$args
         print $"(ansi green)Success:(ansi reset) Plugin ($name) mounted at ($prefix)"
     } catch { |err|
         print $"(ansi red)Error:(ansi reset) git subtree add failed."
@@ -65,8 +73,15 @@ def push [
     }
 
     print $"(ansi cyan)[ClauseOS Subtree](ansi reset) Pushing commits from ($prefix) to ($target)/($branch)..."
+    
+    let args = [
+        "subtree", "push",
+        "--prefix", $prefix,
+        $target, $branch
+    ]
+
     try {
-        ^git subtree push --prefix $prefix $target $branch
+        ^git ...$args
         print $"(ansi green)Success:(ansi reset) ($name) plugin upstream is in sync."
     } catch { |err|
         print $"(ansi red)Error:(ansi reset) git subtree push failed."
@@ -83,10 +98,20 @@ def pull [
 
     let prefix = (get-prefix $name)
     let target = if ($remote | is-empty) { $"plugin-($name)" } else { $remote }
+    let commit_msg = $"chore - sync ($name) from upstream"
 
     print $"(ansi cyan)[ClauseOS Subtree](ansi reset) Pulling commits from ($target)/($branch) into ($prefix)..."
+    
+    let args = [
+        "subtree", "pull",
+        "--prefix", $prefix,
+        $target, $branch,
+        "--squash",
+        "-m", $commit_msg
+    ]
+
     try {
-        ^git subtree pull --prefix $prefix $target $branch --squash -m $"chore(plugins): sync ($name) from upstream"
+        ^git ...$args
         print $"(ansi green)Success:(ansi reset) ($prefix) updated from ($target)."
     } catch { |err|
         print $"(ansi red)Error:(ansi reset) git subtree pull failed."
