@@ -1,0 +1,323 @@
+# mise tool plugin template
+
+This is a GitHub template for building a mise tool plugin using the vfox-style Lua hooks architecture.
+
+## Using this template
+
+### Option 1: Use GitHub's template feature (recommended)
+1. Click "Use this template" button on GitHub
+2. Name your repository (e.g., `mise-mytool`)
+3. Clone your new repository
+4. Follow the setup instructions below
+
+### Option 2: Clone and modify
+```bash
+git clone https://github.com/jdx/mise-tool-plugin-template mise-mytool
+cd mise-mytool
+rm -rf .git
+git init
+```
+
+## Setup Instructions
+
+### 1. Replace placeholders
+
+Search and replace these placeholders throughout the project:
+- `<TOOL>` → your tool name (e.g., `semver`)
+- `<GITHUB_USER>` → your GitHub username or organization
+- `<GITHUB_REPO>` → the upstream tool's GitHub repository name
+
+Files to update:
+- `metadata.lua` - Update name, version, description, author, license, homepage, and optional metadata
+- `hooks/*.lua` - Replace placeholders in all hook files
+- `mise-tasks/test` - Update test version and command
+- `README.md` - Update this file with your tool's information
+
+### 2. Implement the hooks
+
+#### `hooks/available.lua`
+Returns a list of available versions. Examples:
+
+```lua
+-- Example 1: GitHub releases API
+local repo_url = "https://api.github.com/repos/owner/repo/releases"
+
+-- Example 2: GitHub tags API
+local repo_url = "https://api.github.com/repos/owner/repo/tags"
+
+-- Example 3: Custom version listing
+-- Parse from a website, API, or other source
+```
+
+#### `hooks/pre_install.lua`
+Returns download information for a specific version:
+
+```lua
+-- Example 1: Simple binary download
+local url = "https://github.com/owner/repo/releases/download/v" .. version .. "/tool-linux-amd64"
+
+-- Example 2: Archive download
+local url = "https://github.com/owner/repo/releases/download/v" .. version .. "/tool-" .. version .. "-" .. platform .. ".tar.gz"
+
+-- Example 3: Raw file from repository
+local url = "https://raw.githubusercontent.com/owner/repo/" .. version .. "/bin/tool"
+```
+
+### Private GitHub repositories
+
+The plugin repository and the tool's release repository use different authentication paths. Keep credentials outside the plugin source and configuration committed to Git.
+
+#### Private plugin repository
+
+Install a private plugin with the user's normal Git authentication. SSH is a simple option:
+
+```bash
+mise plugin install <TOOL> git@github.com:example-org/private-tool-plugin.git
+```
+
+An HTTPS URL also works when Git has a credential helper configured:
+
+```bash
+mise plugin install <TOOL> https://github.com/example-org/private-tool-plugin.git
+```
+
+Do not add a token to either URL. It can be retained in shell history, configuration, process arguments, or the Git remote. Verify repository access independently with `git ls-remote <repository-url>` if installation fails.
+
+#### Private tool version discovery
+
+For a private tool repository, use the GitHub REST API URL in `hooks/available.lua`. mise's vfox HTTP module resolves the configured GitHub token and adds it to requests for `api.github.com`; the plugin should not access the token or add its own authorization header.
+
+```lua
+local http = require("http")
+local json = require("json")
+
+function PLUGIN:Available(ctx)
+    local versions = {}
+    local repo_url = "https://api.github.com/repos/example-org/private-tool/releases"
+
+    while repo_url ~= nil do
+        local resp, err = http.get({ url = repo_url })
+        if err ~= nil then
+            error("Failed to fetch releases: " .. err)
+        end
+        if resp.status_code ~= 200 then
+            error("GitHub API returned status " .. resp.status_code)
+        end
+
+        for _, release in ipairs(json.decode(resp.body)) do
+            table.insert(versions, {
+                version = release.tag_name:gsub("^v", ""),
+            })
+        end
+
+        repo_url = resp.headers["link"] and resp.headers["link"]:match('<([^>]+)>;%s*rel="next"')
+    end
+    return versions
+end
+```
+
+Configure repository access through one of mise's [GitHub token sources](https://mise.jdx.dev/dev-tools/github-tokens.html), such as a GitHub CLI token, a secret manager-backed credential command, or a CI secret. For a fine-grained token, grant the private repository `Contents: read`. Use `mise token github` to check the selected source; it masks the token value.
+
+#### Private release assets
+
+Do not reuse the public `https://github.com/.../releases/download/...` or `raw.githubusercontent.com` examples for private artifacts. vfox adds mise's GitHub token only to GitHub API requests, and this template's `PreInstall` hook returns a URL but has no supported header field for an authenticated asset download.
+
+For a private repository that uses conventional GitHub releases, prefer mise's built-in `github:` backend, which supports private releases with the same GitHub token configuration:
+
+```toml
+[tools]
+"github:example-org/private-tool" = "1.2.3"
+```
+
+If the tool needs custom private-asset installation beyond that backend, this template does not currently provide a complete supported implementation; use a backend plugin or add the required mise support before publishing an example.
+
+#### `hooks/post_install.lua`
+Handles post-installation setup:
+
+```lua
+-- Example 1: Single binary (chmod and move to bin/)
+os.execute("mkdir -p " .. path .. "/bin")
+os.execute("mv " .. path .. "/tool " .. path .. "/bin/tool")
+os.execute("chmod +x " .. path .. "/bin/tool")
+
+-- Example 2: Extract from archive (handled automatically by mise)
+-- Usually no action needed if pre_install returns an archive
+
+-- Example 3: Multiple binaries
+-- Move all executables to bin/ directory
+```
+
+### 3. Configure environment variables
+
+Update `hooks/env_keys.lua` if your tool needs special environment variables:
+
+```lua
+-- Basic PATH setup (minimum required)
+return {
+    {
+        key = "PATH",
+        value = mainPath .. "/bin"
+    }
+}
+
+-- Advanced example with tool-specific vars
+return {
+    {
+        key = "TOOL_HOME",
+        value = mainPath
+    },
+    {
+        key = "PATH",
+        value = mainPath .. "/bin"
+    },
+    {
+        key = "LD_LIBRARY_PATH",
+        value = mainPath .. "/lib"
+    }
+}
+```
+
+## Development Workflow
+
+### Setting up development environment
+
+1. Install pre-commit hooks (optional but recommended):
+```bash
+hk install
+```
+
+This sets up automatic linting and formatting on git commits.
+
+### Local Testing
+
+1. Link your plugin for development:
+```bash
+mise plugin link --force <TOOL> .
+```
+
+2. Run tests:
+```bash
+mise run test
+```
+
+3. Run linting:
+```bash
+mise run lint
+```
+
+4. Run full CI suite:
+```bash
+mise run ci
+```
+
+### Code Quality
+
+This template uses [hk](https://hk.jdx.dev) for modern linting and pre-commit hooks:
+
+- **Automatic formatting**: `stylua` formats Lua code
+- **Static analysis**: `luacheck` catches Lua issues
+- **GitHub Actions linting**: `actionlint` validates workflows
+- **Pre-commit hooks**: Runs all checks automatically on git commit
+
+Manual commands:
+```bash
+hk check      # Run all linters (same as mise run lint)
+hk fix        # Run linters and auto-fix issues
+```
+
+### Debugging
+
+Enable debug output:
+```bash
+MISE_DEBUG=1 mise install <TOOL>@latest
+```
+
+## Files
+
+- `metadata.lua` – Plugin metadata and configuration
+- `hooks/available.lua` – Returns available versions from upstream
+- `hooks/pre_install.lua` – Returns artifact URL for a given version
+- `hooks/post_install.lua` – Post-installation setup (permissions, moving files)
+- `hooks/env_keys.lua` – Environment variables to export (PATH, etc.)
+- `.github/workflows/ci.yml` – GitHub Actions CI/CD pipeline
+- `mise.toml` – Development tools and configuration
+- `mise-tasks/` – Task scripts for testing
+- `hk.pkl` – Modern linting and pre-commit hook configuration
+- `.luacheckrc` – Lua linting configuration
+- `stylua.toml` – Lua formatting configuration
+
+## Common Patterns
+
+### Platform Detection
+```lua
+local function get_platform()
+    -- RUNTIME object is provided by mise/vfox
+    -- RUNTIME.osType: "Windows", "Linux", "Darwin"
+    -- RUNTIME.archType: "amd64", "386", "arm64", etc.
+
+    local os_name = RUNTIME.osType:lower()
+    local arch = RUNTIME.archType
+
+    -- Map to your tool's platform naming convention
+    local platform_map = {
+        ["darwin"] = {
+            ["amd64"] = "darwin-amd64",
+            ["arm64"] = "darwin-arm64",
+        },
+        ["linux"] = {
+            ["amd64"] = "linux-amd64",
+            ["arm64"] = "linux-arm64",
+        },
+        ["windows"] = {
+            ["amd64"] = "windows-amd64",
+            ["386"] = "windows-386",
+        }
+    }
+
+    local os_map = platform_map[os_name]
+    if os_map then
+        return os_map[arch] or "linux-amd64"
+    end
+    return "linux-amd64"  -- fallback
+end
+```
+
+### Checksum Verification
+```lua
+-- In pre_install.lua, return sha256
+return {
+    version = version,
+    url = url,
+    sha256 = "abc123...",  -- Optional but recommended
+}
+```
+
+### Error Handling
+```lua
+if err ~= nil then
+    error("Failed to fetch versions: " .. err)
+end
+
+if resp.status_code ~= 200 then
+    error("API returned status " .. resp.status_code)
+end
+```
+
+## Documentation
+
+Refer to the mise docs for detailed information:
+
+- [Tool plugin development](https://mise.jdx.dev/tool-plugin-development.html) - Complete guide to plugin development
+- [Lua modules reference](https://mise.jdx.dev/plugin-lua-modules.html) - Available Lua modules and functions
+- [Plugin publishing](https://mise.jdx.dev/plugin-publishing.html) - How to publish your plugin
+- [mise-plugins organization](https://github.com/mise-plugins) - Community plugins repository
+
+## Publishing
+
+1. Ensure all tests pass: `mise run ci`
+2. Create a GitHub repository for your plugin
+3. Push your code
+
+## License
+
+MIT
