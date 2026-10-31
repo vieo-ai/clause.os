@@ -33,6 +33,7 @@ if $is_windows {
     $env.MISE_CONFIG_DIR = ($win_roaming | path join "mise")
     $env.MISE_STATE_DIR  = ($win_local | path join "mise" "state")
     $env.MISE_CACHE_DIR  = ($win_local | path join "mise" "cache")
+    $env.GH_CONFIG_DIR   = ($win_roaming | path join "GitHub CLI")
 } else {
     $env.XDG_CONFIG_HOME = ($clause_home | path join ".config")
     $env.XDG_DATA_HOME   = ($clause_home | path join ".local" "share")
@@ -49,21 +50,49 @@ if $is_windows {
     $env.MISE_CONFIG_DIR = ($env.XDG_CONFIG_HOME | path join "mise")
     $env.MISE_STATE_DIR  = ($env.XDG_STATE_HOME | path join "mise")
     $env.MISE_CACHE_DIR  = ($env.XDG_CACHE_HOME | path join "mise")
+    $env.GH_CONFIG_DIR   = ($env.XDG_CONFIG_HOME | path join "gh")
 }
 
-# Ensure root directories exist on disk so symlink expansion is deterministic
-if not ($env.CLAUSE_CACHE_DIR | path exists) {
-    mkdir $env.CLAUSE_CACHE_DIR
-}
-if not ($env.CLAUSE_BIN_DIR | path exists) {
-    mkdir $env.CLAUSE_BIN_DIR
+# 3. Directory Invariants & Hermetic SSH Containment
+let ssh_dir = ($clause_home | path join ".ssh")
+
+for dir in [$env.CLAUSE_CACHE_DIR $env.CLAUSE_BIN_DIR $ssh_dir] {
+    if not ($dir | path exists) { mkdir $dir }
 }
 
-# 3. Dedicated Config and Identity Routing
+let ssh_config  = ($ssh_dir | path join "config")
+let known_hosts = ($ssh_dir | path join "known_hosts")
+let id_ed25519  = ($ssh_dir | path join "id_ed25519")
+let id_rsa      = ($ssh_dir | path join "id_rsa")
+
+# Format paths with forward slashes for cross-platform OpenSSH compatibility
+let ssh_config_str  = ($ssh_config | str replace -a '\' '/')
+let known_hosts_str = ($known_hosts | str replace -a '\' '/')
+let id_ed_str       = ($id_ed25519 | str replace -a '\' '/')
+let id_rsa_str      = ($id_rsa | str replace -a '\' '/')
+
+if ($ssh_config | path exists) {
+    $env.GIT_SSH_COMMAND = $"ssh -F '($ssh_config_str)' -o UserKnownHostsFile='($known_hosts_str)'"
+} else {
+    $env.GIT_SSH_COMMAND = $"ssh -i '($id_ed_str)' -i '($id_rsa_str)' -o UserKnownHostsFile='($known_hosts_str)'"
+}
+
+# Standalone SSH routing proxy for interactive commands in Nushell
+def --env ssh [...args: string] {
+    let cfg = ($env.CLAUSE_HOME | path join ".ssh" "config" | str replace -a '\' '/')
+    if ($cfg | path exists) {
+        ^ssh -F $cfg ...$args
+    } else {
+        ^ssh ...$args
+    }
+}
+
+# 4. Identity & Config Routing
 $env.GIT_CONFIG_GLOBAL = ($clause_home | path join ".gitconfig")
 $env.NU_CONFIG_DIR     = ($project_root | path join "scripts" "cli" "nu" "config")
+$env.PULUMI_HOME       = ($clause_home | path join ".pulumi")
 
-# 4. PATH Injection (Stage 0 Binaries Only)
+# 5. PATH Injection (Stage 0 Binaries Only)
 let bin_dir = ($env.CLAUSE_BIN_DIR | path expand)
 
 let raw_paths = if ($env.PATH | describe | str starts-with "list") {
@@ -88,6 +117,6 @@ if not ($current_paths | any { |p|
     $env.PATH = $current_paths
 }
 
-# 5. Dynamic Mise Activation Overlay Generation
+# 6. Dynamic Mise Activation Overlay Generation
 let mise_path = ($env.NU_CONFIG_DIR | path join "mise.nu")
 ^mise activate nu | save $mise_path --force
