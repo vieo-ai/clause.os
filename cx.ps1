@@ -181,16 +181,29 @@ if (-not (Test-Path $MiseBin)) {
     $CleanMiseVer = $MiseVersion.TrimStart('v')
     Write-ClauseLog "Seeding Mise (v$CleanMiseVer) into $LocalBin..." -Level INFO
 
-    $MiseUrl = if ($IsOSWindows) {
-        "https://github.com/jdx/mise/releases/download/v${CleanMiseVer}/mise-v${CleanMiseVer}-windows-x64.exe"
-    } elseif ($IsOSMac) {
-        "https://github.com/jdx/mise/releases/download/v${CleanMiseVer}/mise-v${CleanMiseVer}-macos-x64"
-    } else {
-        "https://github.com/jdx/mise/releases/download/v${CleanMiseVer}/mise-v${CleanMiseVer}-linux-x64"
-    }
+    if ($IsOSWindows) {
+        $MiseAsset    = "mise-v${CleanMiseVer}-windows-x64.zip"
+        $MiseUrl      = "https://github.com/jdx/mise/releases/download/v${CleanMiseVer}/${MiseAsset}"
+        $MiseDownload = Join-Path $TmpDir $MiseAsset
+        $MiseExtract  = Join-Path $TmpDir "mise_extracted"
 
-    Get-File -Url $MiseUrl -OutFile $MiseBin
-    Set-PosixExecutable -FilePath $MiseBin
+        Get-File -Url $MiseUrl -OutFile $MiseDownload
+        Expand-HermeticArchive -ArchivePath $MiseDownload -DestinationPath $MiseExtract
+
+        # Move all unpacked binaries (mise.exe, mise-shim.exe, etc.) into $LocalBin
+        Get-ChildItem -Path $MiseExtract -Filter "*.exe" -Recurse | ForEach-Object {
+            Move-Item -Path $_.FullName -Destination $LocalBin -Force
+        }
+    } else {
+        $MiseUrl = if ($IsOSMac) {
+            "https://github.com/jdx/mise/releases/download/v${CleanMiseVer}/mise-v${CleanMiseVer}-macos-x64"
+        } else {
+            "https://github.com/jdx/mise/releases/download/v${CleanMiseVer}/mise-v${CleanMiseVer}-linux-x64"
+        }
+
+        Get-File -Url $MiseUrl -OutFile $MiseBin
+        Set-PosixExecutable -FilePath $MiseBin
+    }
 }
 
 # 2. Nushell Seeding
