@@ -24,13 +24,36 @@ export CLAUSE_CACHE_DIR="${XDG_CACHE_HOME}"
 export CLAUSE_TEMP_DIR="${XDG_CACHE_HOME}/tmp_bootstrap"
 export CLAUSE_LOGS_DIR="${CLAUSE_HOME}/.local/logs"
 
-# Ensure the root cache directory exists on disk
+# Ensure core directories and hermetic .ssh exist on disk
+SSH_DIR="${CLAUSE_HOME}/.ssh"
 [ -d "${CLAUSE_CACHE_DIR}" ] || mkdir -p "${CLAUSE_CACHE_DIR}"
+[ -d "${CLAUSE_BIN_DIR}" ] || mkdir -p "${CLAUSE_BIN_DIR}"
+[ -d "${SSH_DIR}" ] || mkdir -p "${SSH_DIR}"
 
 # Application Profile Targets
 export GIT_CONFIG_GLOBAL="${CLAUSE_HOME}/.gitconfig"
 export GH_CONFIG_DIR="${XDG_CONFIG_HOME}/gh"
 export NU_CONFIG_DIR="${CLAUSE_ROOT}/scripts/cli/nu/config"
+export PULUMI_HOME="${CLAUSE_HOME}/.pulumi"
+
+# Strict Git & SSH Environment Locks
+SSH_CONFIG="${SSH_DIR}/config"
+KNOWN_HOSTS="${SSH_DIR}/known_hosts"
+
+if [ -f "$SSH_CONFIG" ]; then
+    export GIT_SSH_COMMAND="ssh -F '$SSH_CONFIG' -o UserKnownHostsFile='$KNOWN_HOSTS'"
+else
+    export GIT_SSH_COMMAND="ssh -i '$SSH_DIR/id_ed25519' -i '$SSH_DIR/id_rsa' -o UserKnownHostsFile='$KNOWN_HOSTS'"
+fi
+
+# Hermetic SSH invocation proxy
+ssh() {
+    if [ -f "$CLAUSE_HOME/.ssh/config" ]; then
+        command ssh -F "$CLAUSE_HOME/.ssh/config" "$@"
+    else
+        command ssh "$@"
+    fi
+}
 
 # Isolated Toolchain Directories
 export MISE_DATA_DIR="${XDG_DATA_HOME}/mise"
