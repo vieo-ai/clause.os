@@ -26,7 +26,7 @@ export def "main add" [
 
     # 2. Add subtree with squash
     try {
-        ^git subtree add --prefix=$prefix $remote_name $branch --squash -m $"feat(plugins): import ($name) plugin subtree"
+        ^git subtree add --prefix $prefix $remote_name $branch --squash -m $"feat(plugins): import ($name) plugin subtree"
         print $"(ansi green)Success:(ansi reset) Plugin ($name) mounted at ($prefix)"
     } catch { |err|
         print $"(ansi red)Error:(ansi reset) Failed to add subtree. Ensure working tree is clean."
@@ -45,7 +45,7 @@ export def "main push" [
     print $"(ansi cyan)[ClauseOS Subtree](ansi reset) Pushing local commits for ($prefix) to ($target)/($branch)..."
 
     try {
-        ^git subtree push --prefix=$prefix $target $branch
+        ^git subtree push --prefix $prefix $target $branch
         print $"(ansi green)Success:(ansi reset) ($name) plugin upstream is in sync."
     } catch { |err|
         print $"(ansi red)Error:(ansi reset) Failed to push subtree to ($target)."
@@ -64,7 +64,7 @@ export def "main pull" [
     print $"(ansi cyan)[ClauseOS Subtree](ansi reset) Pulling latest commits from ($target)/($branch) into ($prefix)..."
 
     try {
-        ^git subtree pull --prefix=$prefix $target $branch --squash -m $"chore(plugins): sync ($name) from upstream"
+        ^git subtree pull --prefix $prefix $target $branch --squash -m $"chore(plugins): sync ($name) from upstream"
         print $"(ansi green)Success:(ansi reset) ($prefix) updated from ($target)."
     } catch { |err|
         print $"(ansi red)Error:(ansi reset) Failed to pull subtree."
