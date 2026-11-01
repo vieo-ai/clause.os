@@ -4,7 +4,7 @@
 
 PLUGIN = { -- luacheck: ignore
     -- Required: Plugin metadata name
-    name = "vscode",
+    name = "code",
 
     -- Required: Plugin metadata version
     version = "1.0.0",
