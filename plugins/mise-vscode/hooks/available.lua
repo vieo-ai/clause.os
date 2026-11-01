@@ -8,10 +8,10 @@ function PLUGIN:Available(ctx)
 
     -- Example 1: GitHub Tags API (most common)
     -- Replace <GITHUB_USER>/<GITHUB_REPO> with your tool's repository
-    local repo_url = "https://api.github.com/repos/<GITHUB_USER>/<GITHUB_REPO>/tags"
+    -- local repo_url = "https://api.github.com/repos/<GITHUB_USER>/<GITHUB_REPO>/tags"
 
     -- Example 2: GitHub Releases API (for tools that use GitHub releases)
-    -- local repo_url = "https://api.github.com/repos/<GITHUB_USER>/<GITHUB_REPO>/releases"
+    local repo_url = "https://api.github.com/repos/microsoft/vscode/tags"
 
     -- For api.github.com requests, mise attaches a configured GitHub token automatically.
     -- Do not read tokens or construct Authorization headers in the plugin. See README.md
@@ -32,21 +32,17 @@ function PLUGIN:Available(ctx)
 
     -- Process tags/releases
     for _, tag_info in ipairs(tags) do
-        local version = tag_info.name
-
+        local tag = tag_info.name or ""
         -- Clean up version string (remove 'v' prefix if present)
-        -- version = version:gsub("^v", "")
+        local version = tag:gsub("^v", "")
 
-        -- For releases API, you might want:
-        -- local version = tag_info.tag_name:gsub("^v", "")
-        -- local is_prerelease = tag_info.prerelease or false
-        -- local note = is_prerelease and "pre-release" or nil
-
-        table.insert(result, {
-            version = version,
-            note = nil, -- Optional: "latest", "lts", "pre-release", etc.
-            -- addition = {} -- Optional: additional tools/components
-        })
+        -- Filter to standard semantic version tags (exclude custom release tags)
+        if version:match("^%d+%.%d+%.%d+$") then
+            table.insert(result, {
+                version = version,
+                note = nil,
+            })
+        end
     end
 
     return result
