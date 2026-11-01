@@ -45,7 +45,7 @@ pulumi    = "3.272.0"
 
 # --- 4. AI & ML ---
 apm        = "v0.33.0"
-lemonade   = "latest"
+lemonade   = "2026.44.1"
 fastflowlm = "1.0.9"
 
 [settings]
