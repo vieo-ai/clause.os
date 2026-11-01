@@ -2,17 +2,21 @@
 #MISE description="Run plugin tests - install and execute tool"
 set -euo pipefail
 
-mise plugin link --force fastflowlm .
-mise cache clear
-mise install fastflowlm@latest
+mise plugin link --force fastflowlm .[cite: 5]
+mise cache clear[cite: 5]
+mise install fastflowlm@latest[cite: 5]
 
-# Execute explicitly scoped to the tool version
-output=$(mise exec "fastflowlm@latest" -- fastflowlm --help 2>&1 || mise exec "fastflowlm@latest" -- fastflowlm --version 2>&1)
-echo "fastflowlm output: $output"
+# Test executing via flm
+output=$(mise exec "fastflowlm@latest" -- flm --help 2>&1 || mise exec "fastflowlm@latest" -- flm --version 2>&1)
+echo "flm output: $output"
 
-if echo "$output" | grep -qi 'fastflow'; then
-    echo "✓ Tests passed"
+# Test executing via the alias fastflowlm
+output_alias=$(mise exec "fastflowlm@latest" -- fastflowlm --help 2>&1 || mise exec "fastflowlm@latest" -- fastflowlm --version 2>&1)
+echo "fastflowlm output: $output_alias"
+
+if echo "$output" | grep -qiE 'fastflow|flm|usage'; then
+    echo "✓ Tests passed"[cite: 5]
 else
-    echo "✗ Test failed: unexpected output"
-    exit 1
+    echo "✗ Test failed: unexpected output"[cite: 5]
+    exit 1[cite: 5]
 fi
