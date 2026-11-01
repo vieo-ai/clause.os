@@ -21,6 +21,9 @@ _.path = [
     "{{ env.CLAUSE_APPS_DIR }}/comfyui/bin",
 ]
 
+[plugins]
+lemonade = "https://github.com/vieo-ai/mise-lemonade.git"
+
 [tools]
 # --- 1. BEAM CONCURRENCY & CONTROL PLANE (CARRIER CORE) ---
 erlang = "29.1.2"
@@ -41,6 +44,7 @@ pulumi    = "3.272.0"
 
 # --- 4. AI & ML ---
 apm       = "v0.33.0"
+lemonade  = "latest"
 
 [settings]
 auto_install = false
