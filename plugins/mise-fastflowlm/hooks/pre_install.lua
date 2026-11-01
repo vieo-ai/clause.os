@@ -6,9 +6,16 @@ function PLUGIN:PreInstall(ctx)
     local version = ctx.version
     -- ctx.runtimeVersion contains the full version string if needed
 
-    -- FastFlowLM does not support macOS
-    if RUNTIME.osType == "Darwin" then
-        error("FastFlowLM is not supported on macOS.")
+    local clean_version = version:gsub("^v", "")
+    local tag = "v" .. clean_version
+
+    -- Faithful translation of installer_fastflowlm.ps1:
+    -- if ($IsOSMac) { return }
+    if RUNTIME.osType:lower() == "darwin" then
+        return {
+            version = clean_version,
+            note = "FastFlowLM is unsupported on macOS; skipping download.",
+        }
     end
 
     -- Example 1: Simple binary download
@@ -24,10 +31,7 @@ function PLUGIN:PreInstall(ctx)
     -- Example 4: Raw file from repository
     -- local url = "https://raw.githubusercontent.com/<GITHUB_USER>/<GITHUB_REPO>/" .. version .. "/bin/<TOOL>"
 
-    local clean_version = version:gsub("^v", "")
-    local tag = "v" .. clean_version
-
-    -- Translation of installer_fastflowlm.ps1 asset naming:
+    -- Exact matrix from installer_fastflowlm.ps1:
     -- Windows: fastflowlm_${FastFlowClean}_windows_amd64.zip
     -- Linux:   fastflowlm_${FastFlowClean}_linux.tar.gz
     local asset_name
