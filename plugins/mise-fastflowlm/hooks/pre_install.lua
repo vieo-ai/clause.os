@@ -6,6 +6,11 @@ function PLUGIN:PreInstall(ctx)
     local version = ctx.version
     -- ctx.runtimeVersion contains the full version string if needed
 
+    -- FastFlowLM does not support macOS
+    if RUNTIME.osType == "Darwin" then
+        error("FastFlowLM is not supported on macOS.")
+    end
+
     -- Example 1: Simple binary download
     -- local url = "https://github.com/<GITHUB_USER>/<GITHUB_REPO>/releases/download/v" .. version .. "/<TOOL>-linux-amd64"
 
@@ -19,17 +24,35 @@ function PLUGIN:PreInstall(ctx)
     -- Example 4: Raw file from repository
     -- local url = "https://raw.githubusercontent.com/<GITHUB_USER>/<GITHUB_REPO>/" .. version .. "/bin/<TOOL>"
 
-    -- Replace with your actual download URL pattern
-    local url = "https://example.com/<TOOL>/releases/download/" .. version .. "/<TOOL>"
+    local clean_version = version:gsub("^v", "")
+    local tag = "v" .. clean_version
+
+    -- Translation of installer_fastflowlm.ps1 asset naming:
+    -- Windows: fastflowlm_${FastFlowClean}_windows_amd64.zip
+    -- Linux:   fastflowlm_${FastFlowClean}_linux.tar.gz
+    local asset_name
+    local os_type = RUNTIME.osType:lower()
+
+    if os_type == "windows" then
+        asset_name = string.format("fastflowlm_%s_windows_amd64.zip", clean_version)
+    else
+        asset_name = string.format("fastflowlm_%s_linux.tar.gz", clean_version)
+    end
+
+    local url = string.format(
+        "https://github.com/ROCm/FastFlowLM/releases/download/%s/%s",
+        tag,
+        asset_name
+    )
 
     -- Optional: Fetch checksum for verification
     -- local sha256 = fetch_checksum(version) -- Implement if checksums are available
 
     return {
-        version = version,
+        version = clean_version,
         url = url,
         -- sha256 = sha256, -- Optional but recommended for security
-        note = "Downloading <TOOL> " .. version,
+        note = string.format("Seeding FastFlowLM NPU Engine (%s)...", tag),
         -- addition = { -- Optional: download additional components
         --     {
         --         name = "component",
