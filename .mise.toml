@@ -43,8 +43,9 @@ packer    = "1.16.2"
 pulumi    = "3.272.0"
 
 # --- 4. AI & ML ---
-apm       = "v0.33.0"
-lemonade  = "latest"
+apm        = "v0.33.0"
+lemonade   = "latest"
+fastflowlm = "1.0.9"
 
 [settings]
 auto_install = false
