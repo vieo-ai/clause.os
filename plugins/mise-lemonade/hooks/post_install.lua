@@ -8,6 +8,7 @@ function PLUGIN:PostInstall(ctx)
 
     -- Example 1: Single binary file (most common)
     -- The file is downloaded directly, move it to bin/ and make executable
+    --[[
     os.execute("mkdir -p " .. path .. "/bin")
 
     local srcFile = path .. "/" .. PLUGIN.name
@@ -24,6 +25,7 @@ function PLUGIN:PostInstall(ctx)
     if testResult ~= 0 then
         error(PLUGIN.name .. " installation appears to be broken")
     end
+    --]]
 
     -- Example 2: Archive already extracted by mise
     -- If pre_install returns a .tar.gz or .zip, mise extracts it automatically
@@ -56,14 +58,12 @@ function PLUGIN:PostInstall(ctx)
     --]]
 
     -- Example 5: Platform-specific setup
-    --[[
     -- RUNTIME object is provided by mise/vfox
     if RUNTIME.osType ~= "Windows" then
         -- Unix-like systems: make binaries executable
-        os.execute("chmod +x " .. path .. "/bin/*")
+        os.execute("chmod -R +x " .. path)
     else
         -- Windows-specific setup if needed
         -- e.g., adding .exe extension or handling batch files
     end
-    --]]
 end
