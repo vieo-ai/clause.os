@@ -23,6 +23,7 @@ _.path = [
 
 [plugins]
 lemonade = "https://github.com/vieo-ai/mise-lemonade.git"
+fastflowlm = "https://github.com/vieo-ai/mise-fastflowlm.git"
 
 [tools]
 # --- 1. BEAM CONCURRENCY & CONTROL PLANE (CARRIER CORE) ---
