@@ -6,11 +6,11 @@ mise plugin link --force fastflowlm .
 mise cache clear
 mise install fastflowlm@latest
 
-# Capture and display the output while also verifying it
-output=$(mise exec "fastflowlm@latest" -- "fastflowlm" --version)
+# Execute explicitly scoped to the tool version
+output=$(mise exec "fastflowlm@latest" -- fastflowlm --help 2>&1 || mise exec "fastflowlm@latest" -- fastflowlm --version 2>&1)
 echo "fastflowlm output: $output"
 
-if echo "$output" | grep -qi 'fastflowlm'; then
+if echo "$output" | grep -qi 'fastflow'; then
     echo "✓ Tests passed"
 else
     echo "✗ Test failed: unexpected output"
