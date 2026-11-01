@@ -12,7 +12,15 @@ function PLUGIN:EnvKeys(ctx)
     return {
         {
             key = "PATH",
+            value = mainPath,
+        },
+        {
+            key = "PATH",
             value = mainPath .. "/bin",
+        },
+        {
+            key = "FASTFLOWLM_HOME",
+            value = mainPath,
         },
     }
 
