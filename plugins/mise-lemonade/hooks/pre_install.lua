@@ -19,17 +19,35 @@ function PLUGIN:PreInstall(ctx)
     -- Example 4: Raw file from repository
     -- local url = "https://raw.githubusercontent.com/<GITHUB_USER>/<GITHUB_REPO>/" .. version .. "/bin/<TOOL>"
 
-    -- Replace with your actual download URL pattern
-    local url = "https://example.com/<TOOL>/releases/download/" .. version .. "/<TOOL>"
+    local clean_version = version:gsub("^v", "")
+    local tag = "v" .. clean_version
+
+    -- Faithful mapping to installer_lemonade.ps1 asset matrix
+    local asset_name
+    local os_type = RUNTIME.osType:lower()
+
+    if os_type == "windows" then
+        asset_name = string.format("lemonade-embeddable-%s-windows-x64.zip", clean_version)
+    elseif os_type == "darwin" then
+        asset_name = string.format("lemonade-embeddable-%s-macos-arm64.tar.gz", clean_version)
+    else
+        asset_name = string.format("lemonade-embeddable-%s-ubuntu-x64.tar.gz", clean_version)
+    end
+
+    local url = string.format(
+        "https://github.com/lemonade-sdk/lemonade/releases/download/%s/%s",
+        tag,
+        asset_name
+    )
 
     -- Optional: Fetch checksum for verification
     -- local sha256 = fetch_checksum(version) -- Implement if checksums are available
 
     return {
-        version = version,
+        version = clean_version,
         url = url,
         -- sha256 = sha256, -- Optional but recommended for security
-        note = "Downloading <TOOL> " .. version,
+        note = string.format("Seeding Lemonade GPU Engine (%s)...", tag),
         -- addition = { -- Optional: download additional components
         --     {
         --         name = "component",
