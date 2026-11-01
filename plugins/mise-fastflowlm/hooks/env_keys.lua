@@ -8,10 +8,6 @@ function PLUGIN:EnvKeys(ctx)
     return {
         {
             key = "PATH",
-            value = mainPath .. "/bin",
-        },
-        {
-            key = "PATH",
             value = mainPath,
         },
         {
