@@ -8,10 +8,10 @@ function PLUGIN:Available(ctx)
 
     -- Example 1: GitHub Tags API (most common)
     -- Replace <GITHUB_USER>/<GITHUB_REPO> with your tool's repository
-    local repo_url = "https://api.github.com/repos/<GITHUB_USER>/<GITHUB_REPO>/tags"
+    -- local repo_url = "https://api.github.com/repos/<GITHUB_USER>/<GITHUB_REPO>/tags"
 
     -- Example 2: GitHub Releases API (for tools that use GitHub releases)
-    -- local repo_url = "https://api.github.com/repos/<GITHUB_USER>/<GITHUB_REPO>/releases"
+    local repo_url = "https://api.github.com/repos/lemonade-sdk/lemonade/releases"
 
     -- For api.github.com requests, mise attaches a configured GitHub token automatically.
     -- Do not read tokens or construct Authorization headers in the plugin. See README.md
@@ -27,26 +27,26 @@ function PLUGIN:Available(ctx)
         error("GitHub API returned status " .. resp.status_code .. ": " .. resp.body)
     end
 
-    local tags = json.decode(resp.body)
+    local releases = json.decode(resp.body)
     local result = {}
 
     -- Process tags/releases
-    for _, tag_info in ipairs(tags) do
-        local version = tag_info.name
-
+    for _, tag_info in ipairs(releases) do
+        local tag = tag_info.tag_name or ""
         -- Clean up version string (remove 'v' prefix if present)
-        -- version = version:gsub("^v", "")
+        local version = tag:gsub("^v", "")
 
         -- For releases API, you might want:
-        -- local version = tag_info.tag_name:gsub("^v", "")
-        -- local is_prerelease = tag_info.prerelease or false
-        -- local note = is_prerelease and "pre-release" or nil
+        local is_prerelease = tag_info.prerelease or false
+        local note = is_prerelease and "pre-release" or nil
 
-        table.insert(result, {
-            version = version,
-            note = nil, -- Optional: "latest", "lts", "pre-release", etc.
-            -- addition = {} -- Optional: additional tools/components
-        })
+        if version ~= "" then
+            table.insert(result, {
+                version = version,
+                note = note, -- Optional: "latest", "lts", "pre-release", etc.
+                -- addition = {} -- Optional: additional tools/components
+            })
+        end
     end
 
     return result
