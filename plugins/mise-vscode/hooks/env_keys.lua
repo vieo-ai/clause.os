@@ -4,8 +4,7 @@
 --- @return table[] List of environment variable definitions
 function PLUGIN:EnvKeys(ctx)
     local mainPath = ctx.path
-    -- local sdkInfo = ctx.sdkInfo[PLUGIN.name]
-    -- local version = sdkInfo.version
+    local os_type = RUNTIME.osType:lower()
 
     local env_vars = {
         {
@@ -22,9 +21,7 @@ function PLUGIN:EnvKeys(ctx)
         },
     }
 
-    -- macOS app bundle command-line tools path:
-    -- Visual Studio Code.app/Contents/Resources/app/bin
-    if RUNTIME.osType == "Darwin" then
+    if os_type == "darwin" then
         table.insert(env_vars, {
             key = "PATH",
             value = mainPath .. "/Visual Studio Code.app/Contents/Resources/app/bin",
