@@ -5,16 +5,35 @@ function PLUGIN:PostInstall(ctx)
     local sdkInfo = ctx.sdkInfo[PLUGIN.name]
     local path = sdkInfo.path
 
-    -- Ensure standard bin directory exists
-    os.execute("mkdir -p " .. path .. "/bin")
+    -- Ensure a dedicated bin directory exists
+    os.execute("mkdir -p \"" .. path .. "/bin\"")
 
     if RUNTIME.osType == "Windows" then
-        -- Find fastflowlm executable (or nested binary) and normalize into bin/
-        os.execute("find \"" .. path .. "\" -type f -name \"fastflow*.exe\" -not -path \"" .. path .. "/bin/*\" -exec cp -f {} \"" .. path .. "/bin/fastflowlm.exe\" \\; 2>/dev/null || true")
+        -- The archive contains flm.exe directly in root
+        local srcExe = path .. "/flm.exe"
+        local destExe = path .. "/bin/flm.exe"
+        local aliasExe = path .. "/bin/fastflowlm.exe"
+
+        -- Copy flm.exe to bin/ and create fastflowlm.exe alias
+        if os.execute("dir \"" .. srcExe .. "\" >nul 2>&1") == 0 or os.execute("test -f \"" .. srcExe .. "\"") == 0 then
+            os.execute("cp -f \"" .. srcExe .. "\" \"" .. destExe .. "\"")
+            os.execute("cp -f \"" .. srcExe .. "\" \"" .. aliasExe .. "\"")
+        end
     else
-        -- Find executable binary across potential subdirectories and normalize to bin/fastflowlm
-        os.execute("find \"" .. path .. "\" -maxdepth 3 -type f \\( -name \"fastflow*\" -o -name \"fastflowlm\" \\) -not -path \"" .. path .. "/bin/*\" -exec cp -f {} \"" .. path .. "/bin/fastflowlm\" \\; 2>/dev/null || true")
-        -- Ensure all binaries inside bin are executable
-        os.execute("chmod -R +x " .. path .. "/bin")
+        -- Linux flat archive: flm binary in root
+        local srcBin = path .. "/flm"
+        local destBin = path .. "/bin/flm"
+        local aliasBin = path .. "/bin/fastflowlm"
+
+        -- Ensure files in root are executable
+        os.execute("chmod -R +x \"" .. path .. "\"")
+
+        -- Move/link flm to bin/flm and alias to fastflowlm
+        if os.execute("test -f \"" .. srcBin .. "\"") == 0 then
+            os.execute("cp -f \"" .. srcBin .. "\" \"" .. destBin .. "\"")
+            os.execute("cp -f \"" .. srcBin .. "\" \"" .. aliasBin .. "\"")
+        end
+
+        os.execute("chmod -R +x \"" .. path .. "/bin\"")
     end
 end
