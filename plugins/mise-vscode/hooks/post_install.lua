@@ -13,15 +13,20 @@ function PLUGIN:PostInstall(ctx)
         f:close()
 
         if os_type == "windows" then
-            -- --force-local prevents tar from treating "C:" as a remote host
-            os.execute("tar --force-local -xf \"" .. stable_file .. "\" -C \"" .. path .. "\"")
+            local zip_file = path .. "\\stable.zip"
+            -- 1. Rename to .zip so tar.exe recognizes it as a ZIP archive
+            os.execute("move /Y \"" .. stable_file .. "\" \"" .. zip_file .. "\" >nul 2>&1")
+            -- 2. Fast extract via tar.exe
+            os.execute("tar --force-local -xf \"" .. zip_file .. "\" -C \"" .. path .. "\"")
+            -- 3. Cleanup zip file
+            os.execute("del /Q /F \"" .. zip_file .. "\" >nul 2>&1")
         elseif os_type == "darwin" then
             os.execute("unzip -q -o \"" .. stable_file .. "\" -d \"" .. path .. "\"")
+            os.remove(stable_file)
         else
             os.execute("tar -xzf \"" .. stable_file .. "\" -C \"" .. path .. "\"")
+            os.remove(stable_file)
         end
-
-        os.remove(stable_file)
     end
 
     -- Create portable mode data folder
