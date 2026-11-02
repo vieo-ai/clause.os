@@ -8,16 +8,17 @@ function PLUGIN:PostInstall(ctx)
 
     if os_type == "windows" then
         local stable_file = path .. "\\stable"
-        local zip_file = path .. "\\stable.zip"
-
         local f = io.open(stable_file, "rb")
         if f ~= nil then
             f:close()
-            os.remove(zip_file)
-            os.rename(stable_file, zip_file)
-
-            -- cd directly into the install dir so tar doesn't choke on "C:"
-            os.execute("cd /d \"" .. path .. "\" && tar --force-local -xf stable.zip && del /Q /F stable.zip >nul 2>&1")
+            -- Extract directly using .NET ZipFile (fast native C++, ignores filename, no tar quirks)
+            local cmd = string.format(
+                'powershell -NoProfile -Command "Add-Type -AssemblyName System.IO.Compression.FileSystem; [System.IO.Compression.ZipFile]::ExtractToDirectory(\'%s\', \'%s\'); Remove-Item -Force \'%s\'"',
+                stable_file,
+                path,
+                stable_file
+            )
+            os.execute(cmd)
         end
 
         -- Create portable data directory
