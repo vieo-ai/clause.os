@@ -6,11 +6,10 @@ function PLUGIN:PreInstall(ctx)
     local http = require("http")
     local json = require("json")
 
-    local version = ctx.version
-    local clean_version = version:gsub("^v", "")
-
-    -- Map platform to Microsoft VS Code API platform identifier
+    local clean_version = ctx.version:gsub("^v", "")
     local os_type = RUNTIME.osType:lower()
+
+    -- 1. Detect platform identifier
     local platform_id
     if os_type == "windows" then
         platform_id = "win32-x64-archive"
@@ -20,32 +19,24 @@ function PLUGIN:PreInstall(ctx)
         platform_id = "linux-x64"
     end
 
-    -- Query the official update metadata endpoint which returns the direct archive URL
+    -- 2. Query Microsoft's release endpoint to get the direct CDN URL ending in .zip / .tar.gz
     local meta_url = string.format("https://update.code.visualstudio.com/api/update/%s/stable/%s", platform_id, clean_version)
-    local resp, err = http.get({
-        url = meta_url,
-    })
+    local resp, err = http.get({ url = meta_url })
 
-    local download_url = nil
-    local sha256_hash = nil
-
-    if err == nil and resp.status_code == 200 then
-        local data = json.decode(resp.body)
-        if data and data.url then
-            download_url = data.url
-            sha256_hash = data.sha256hash
-        end
+    if err ~= nil or resp.status_code ~= 200 then
+        error(string.format("Failed to resolve VS Code download URL for version %s on %s", clean_version, os_type))
     end
 
-    -- Fallback to direct stable route if metadata API is unavailable
-    if not download_url then
-        download_url = string.format("https://update.code.visualstudio.com/%s/%s/stable", clean_version, platform_id)
+    local data = json.decode(resp.body)
+    if not data or not data.url then
+        error(string.format("Invalid response payload from VS Code API for version %s", clean_version))
     end
 
+    -- data.url is the direct Azure CDN URL ending in .zip / .tar.gz
     return {
         version = clean_version,
-        url = download_url,
-        sha256 = sha256_hash,
+        url = data.url,
+        sha256 = data.sha256hash,
         note = string.format("Seeding VS Code Portable Engine (v%s)...", clean_version),
     }
 end
