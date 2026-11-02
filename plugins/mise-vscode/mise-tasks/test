@@ -1,15 +1,24 @@
 #!/usr/bin/env bash
 #MISE description="Run plugin tests - install and execute tool"
-set -uo pipefail
+set -euo pipefail
 
 mise plugin link --force code .
 mise cache clear
+
+# 1. Install MUST succeed; fail immediately if it does not
+echo "Installing code@latest..."
 mise install code@latest
 
-echo "Testing binary resolution..."
+# 2. Verify installation directory exists
 code_path=$(mise where code@latest)
 echo "Installed at: $code_path"
 
+if [ -z "$code_path" ] || [ ! -d "$code_path" ]; then
+    echo "✗ Test failed: Install directory not found"
+    exit 1
+fi
+
+# 3. Test execution
 EXTRA_FLAGS=""
 if [[ "$(uname -s)" == "Linux" ]]; then
     EXTRA_FLAGS="--no-sandbox"
@@ -24,16 +33,21 @@ echo "code exit code: $exit_code"
 echo "code output:"
 echo "$output"
 
-# Must not fail with exec failure or missing file
-if echo "$output" | grep -qi "couldn't exec process"; then
-    echo "✗ Test failed: binary not found or not executable by mise"
+# If exit code was non-zero or output contains errors, fail
+if [ $exit_code -ne 0 ]; then
+    echo "✗ Test failed: process returned non-zero exit code $exit_code"
     exit 1
 fi
 
-if echo "$output" | grep -qE '[0-9]+\.[0-9]+\.[0-9]+'; then
+if echo "$output" | grep -qi "error"; then
+    echo "✗ Test failed: error reported in output"
+    exit 1
+fi
+
+if echo "$output" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+'; then
     echo "✓ Tests passed"
     exit 0
 else
-    echo "✗ Test failed: unexpected output"
+    echo "✗ Test failed: version string not matched"
     exit 1
 fi
