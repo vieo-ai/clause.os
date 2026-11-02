@@ -13,11 +13,11 @@ function PLUGIN:EnvKeys(ctx)
         },
         {
             key = "PATH",
-            value = mainPath,
+            value = mainPath .. "/bin",
         },
         {
             key = "PATH",
-            value = mainPath .. "/bin",
+            value = mainPath,
         },
     }
 
@@ -25,15 +25,6 @@ function PLUGIN:EnvKeys(ctx)
         table.insert(env_vars, {
             key = "PATH",
             value = mainPath .. "/Visual Studio Code.app/Contents/Resources/app/bin",
-        })
-    elseif os_type == "linux" then
-        table.insert(env_vars, {
-            key = "PATH",
-            value = mainPath .. "/VSCode-linux-x64/bin",
-        })
-        table.insert(env_vars, {
-            key = "PATH",
-            value = mainPath .. "/VSCode-linux-x64",
         })
     end
 
