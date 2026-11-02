@@ -8,7 +8,7 @@ function PLUGIN:EnvKeys(ctx)
 
     local env_vars = {
         {
-            key = "VSCODE_HOME",
+            key = "PATH",
             value = mainPath,
         },
         {
@@ -16,7 +16,7 @@ function PLUGIN:EnvKeys(ctx)
             value = mainPath .. "/bin",
         },
         {
-            key = "PATH",
+            key = "VSCODE_HOME",
             value = mainPath,
         },
     }
