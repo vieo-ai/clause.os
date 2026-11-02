@@ -12,13 +12,6 @@ NU_CONFIG_DIR       = "{{config_root}}/scripts/cli/nu/config"
 
 _.path = [
     "{{ env.CLAUSE_BIN_DIR }}",
-    "{{ env.CLAUSE_APPS_DIR }}/lemonade",
-    "{{ env.CLAUSE_APPS_DIR }}/fastflowlm",
-    "{{ env.CLAUSE_APPS_DIR }}/apm",
-    "{{ env.CLAUSE_APPS_DIR }}/vscode/bin",
-    "{{ env.CLAUSE_APPS_DIR }}/pulumi",
-    "{{ env.CLAUSE_APPS_DIR }}/unsloth/bin",
-    "{{ env.CLAUSE_APPS_DIR }}/comfyui/bin",
 ]
 
 [plugins]
@@ -52,7 +45,7 @@ fastflowlm = "1.0.9"
 # --- 5. DEVOPS & CI/CD ---
 
 # --- 6. DEVTOOLS & UTILITIES ---
-code       = "latest"
+code       = "1.144.1"
 
 [settings]
 auto_install = false
