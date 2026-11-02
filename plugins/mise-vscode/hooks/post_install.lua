@@ -13,8 +13,8 @@ function PLUGIN:PostInstall(ctx)
         f:close()
 
         if os_type == "windows" then
-            -- Use Windows native tar.exe (fast libarchive zip extractor)
-            os.execute("tar -xf \"" .. stable_file .. "\" -C \"" .. path .. "\"")
+            -- --force-local prevents tar from treating "C:" as a remote host
+            os.execute("tar --force-local -xf \"" .. stable_file .. "\" -C \"" .. path .. "\"")
         elseif os_type == "darwin" then
             os.execute("unzip -q -o \"" .. stable_file .. "\" -d \"" .. path .. "\"")
         else
