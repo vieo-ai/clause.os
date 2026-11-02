@@ -24,7 +24,7 @@ function PLUGIN:PreInstall(ctx)
     return {
         version = clean_version,
         url = url,
-        name = asset_name,
+        filename = asset_name,
         note = string.format("Seeding VS Code Portable Engine (v%s)...", clean_version),
     }
 end
