@@ -6,48 +6,50 @@ function PLUGIN:PostInstall(ctx)
     local path = sdkInfo.path
     local os_type = RUNTIME.osType:lower()
 
-    -- Normalize path with forward slashes for clean tool execution across all OSes
-    local norm_path = path:gsub("\\", "/")
-    local stable_file = norm_path .. "/stable"
+    if os_type == "windows" then
+        local stable_file = path .. "\\stable"
+        local zip_file = path .. "\\stable.zip"
 
-    -- Decompress the downloaded payload
-    local f = io.open(stable_file, "rb")
-    if f ~= nil then
-        f:close()
-
-        if os_type == "windows" then
-            local zip_file = norm_path .. "/stable.zip"
-            -- 1. Native Lua file rename (no cmd.exe dependency)
+        local f = io.open(stable_file, "rb")
+        if f ~= nil then
+            f:close()
             os.remove(zip_file)
             os.rename(stable_file, zip_file)
 
-            -- 2. Extract using forward slashes so Windows tar handles paths cleanly
-            os.execute("tar -xf \"" .. zip_file .. "\" -C \"" .. norm_path .. "\"")
-
-            -- 3. Cleanup zip file
-            os.remove(zip_file)
-        elseif os_type == "darwin" then
-            os.execute("unzip -q -o \"" .. stable_file .. "\" -d \"" .. norm_path .. "\"")
-            os.remove(stable_file)
-        else
-            os.execute("tar -xzf \"" .. stable_file .. "\" -C \"" .. norm_path .. "\"")
-            os.remove(stable_file)
+            -- cd directly into the install dir so tar doesn't choke on "C:"
+            os.execute("cd /d \"" .. path .. "\" && tar --force-local -xf stable.zip && del /Q /F stable.zip >nul 2>&1")
         end
-    end
 
-    -- Create portable mode data folder
-    if os_type == "windows" then
+        -- Create portable data directory
         os.execute("if not exist \"" .. path .. "\\data\" mkdir \"" .. path .. "\\data\"")
+    elseif os_type == "darwin" then
+        local stable_file = path .. "/stable"
+        local f = io.open(stable_file, "rb")
+        if f ~= nil then
+            f:close()
+            os.execute("unzip -q -o \"" .. stable_file .. "\" -d \"" .. path .. "\"")
+            os.remove(stable_file)
+        end
+        os.execute("mkdir -p \"" .. path .. "/data\"")
+        os.execute("chmod -R +x \"" .. path .. "\"")
     else
-        os.execute("mkdir -p \"" .. norm_path .. "/data\"")
-
-        -- On Linux, VS Code tarballs unpack inside VSCode-linux-x64/
-        local inner_bin = norm_path .. "/VSCode-linux-x64/bin/code"
-        if os.execute("test -f \"" .. inner_bin .. "\"") == 0 then
-            os.execute("mkdir -p \"" .. norm_path .. "/bin\"")
-            os.execute("ln -sf \"" .. inner_bin .. "\" \"" .. norm_path .. "/bin/code\"")
+        -- Linux
+        local stable_file = path .. "/stable"
+        local f = io.open(stable_file, "rb")
+        if f ~= nil then
+            f:close()
+            os.execute("tar -xzf \"" .. stable_file .. "\" -C \"" .. path .. "\"")
+            os.remove(stable_file)
         end
 
-        os.execute("chmod -R +x \"" .. norm_path .. "\"")
+        os.execute("mkdir -p \"" .. path .. "/data\"")
+
+        local inner_bin = path .. "/VSCode-linux-x64/bin/code"
+        if os.execute("test -f \"" .. inner_bin .. "\"") == 0 then
+            os.execute("mkdir -p \"" .. path .. "/bin\"")
+            os.execute("ln -sf \"" .. inner_bin .. "\" \"" .. path .. "/bin/code\"")
+        end
+
+        os.execute("chmod -R +x \"" .. path .. "\"")
     end
 end
