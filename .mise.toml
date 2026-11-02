@@ -22,8 +22,9 @@ _.path = [
 ]
 
 [plugins]
-lemonade = "https://github.com/vieo-ai/mise-lemonade.git"
-fastflowlm = "https://github.com/vieo-ai/mise-fastflowlm.git"
+lemonade     = "https://github.com/vieo-ai/mise-lemonade.git"
+fastflowlm   = "https://github.com/vieo-ai/mise-fastflowlm.git"
+code         = "https://github.com/vieo-ai/mise-vscode.git"
 
 [tools]
 # --- 1. BEAM CONCURRENCY & CONTROL PLANE (CARRIER CORE) ---
@@ -47,6 +48,11 @@ pulumi    = "3.272.0"
 apm        = "v0.33.0"
 lemonade   = "2026.44.1"
 fastflowlm = "1.0.9"
+
+# --- 5. DEVOPS & CI/CD ---
+
+# --- 6. DEVTOOLS & UTILITIES ---
+code       = "latest"
 
 [settings]
 auto_install = false
