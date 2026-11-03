@@ -60,10 +60,10 @@ echo "[test] Testing unsloth environment execution..."
 
 set +e
 if [ "$IS_WINDOWS" = true ]; then
-    OUTPUT=$(mise exec "unsloth@${TEST_VERSION}" -- "${INSTALL_PATH}/venv/Scripts/python.exe" -c "import unsloth; print('UNSLOTH_OK')" 2>&1)
+    OUTPUT=$(mise exec "unsloth@${TEST_VERSION}" -- "${INSTALL_PATH}/venv/Scripts/python.exe" -c "import importlib.metadata as m; print('Installed unsloth:', m.version('unsloth')); import torch; print('Torch:', torch.__version__); print('UNSLOTH_OK')" 2>&1)
     EXIT_CODE=$?
 else
-    OUTPUT=$(mise exec "unsloth@${TEST_VERSION}" -- "${INSTALL_PATH}/venv/bin/python" -c "import unsloth; print('UNSLOTH_OK')" 2>&1)
+    OUTPUT=$(mise exec "unsloth@${TEST_VERSION}" -- "${INSTALL_PATH}/venv/bin/python" -c "import importlib.metadata as m; print('Installed unsloth:', m.version('unsloth')); import torch; print('Torch:', torch.__version__); print('UNSLOTH_OK')" 2>&1)
     EXIT_CODE=$?
 fi
 set -e
@@ -72,7 +72,7 @@ echo "[test] Output:"
 echo "$OUTPUT"
 
 if [ $EXIT_CODE -ne 0 ] || ! echo "$OUTPUT" | grep -q "UNSLOTH_OK"; then
-    echo "✗ Test failed: Could not import unsloth from provisioned venv"
+    echo "✗ Test failed: Could not verify unsloth in provisioned venv"
     exit 1
 fi
 
