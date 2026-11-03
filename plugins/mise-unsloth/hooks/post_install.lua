@@ -1,4 +1,6 @@
---- plugins/mise-unsloth/hooks/post_install.lua
+--- Performs additional setup after installation
+--- Documentation: https://mise.jdx.dev/tool-plugin-development.html#postinstall-hook
+--- @param ctx {rootPath: string, runtimeVersion: string, sdkInfo: table} Context
 function PLUGIN:PostInstall(ctx)
     local sdkInfo = ctx.sdkInfo[PLUGIN.name]
     local target_dir = sdkInfo.path
@@ -297,6 +299,10 @@ function PLUGIN:PostInstall(ctx)
         local f_over = io.open(override_file, "w")
         if f_over then
             f_over:write(string.format("torch==%s\ntorchvision\ntorchaudio\n", installed_torch))
+            -- xformers has no binary wheels for macOS and fails compiling - skip on Darwin
+            if is_mac then
+                f_over:write("xformers; sys_platform != 'darwin'\n")
+            end
             f_over:close()
         end
 
