@@ -1,52 +1,29 @@
---- Returns a list of available versions for the tool
---- Documentation: https://mise.jdx.dev/tool-plugin-development.html#available-hook
---- @param ctx {args: string[]} Context (args = user arguments)
+--- Returns available versions for unsloth from PyPI
+--- @param ctx {args: string[]} Context
 --- @return table[] List of available versions
 function PLUGIN:Available(ctx)
     local http = require("http")
     local json = require("json")
 
-    -- Example 1: GitHub Tags API (most common)
-    -- Replace <GITHUB_USER>/<GITHUB_REPO> with your tool's repository
-    local repo_url = "https://api.github.com/repos/<GITHUB_USER>/<GITHUB_REPO>/tags"
-
-    -- Example 2: GitHub Releases API (for tools that use GitHub releases)
-    -- local repo_url = "https://api.github.com/repos/<GITHUB_USER>/<GITHUB_REPO>/releases"
-
-    -- For api.github.com requests, mise attaches a configured GitHub token automatically.
-    -- Do not read tokens or construct Authorization headers in the plugin. See README.md
-    -- for the supported private-repository setup.
     local resp, err = http.get({
-        url = repo_url,
+        url = "https://pypi.org/pypi/unsloth/json",
     })
 
-    if err ~= nil then
-        error("Failed to fetch versions: " .. err)
-    end
-    if resp.status_code ~= 200 then
-        error("GitHub API returned status " .. resp.status_code .. ": " .. resp.body)
+    if err ~= nil or resp.status_code ~= 200 then
+        error("Failed to query PyPI releases for unsloth")
     end
 
-    local tags = json.decode(resp.body)
+    local data = json.decode(resp.body)
+    local releases = data.releases or {}
     local result = {}
 
-    -- Process tags/releases
-    for _, tag_info in ipairs(tags) do
-        local version = tag_info.name
-
-        -- Clean up version string (remove 'v' prefix if present)
-        -- version = version:gsub("^v", "")
-
-        -- For releases API, you might want:
-        -- local version = tag_info.tag_name:gsub("^v", "")
-        -- local is_prerelease = tag_info.prerelease or false
-        -- local note = is_prerelease and "pre-release" or nil
-
-        table.insert(result, {
-            version = version,
-            note = nil, -- Optional: "latest", "lts", "pre-release", etc.
-            -- addition = {} -- Optional: additional tools/components
-        })
+    for ver, _ in pairs(releases) do
+        -- Only accept standard release tags (ignore alpha/rc if preferred, or include all)
+        if ver:match("^%d+%.%d+") then
+            table.insert(result, {
+                version = ver,
+            })
+        end
     end
 
     return result
