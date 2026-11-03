@@ -41,11 +41,10 @@ function PLUGIN:PostInstall(ctx)
         end
     end
 
-    -- Helper to capture command output with robust Windows quoting
+    -- Helper to capture command output with robust quoting
     local function capture_cmd(cmd)
         local full_cmd = cmd
         if is_win then
-            -- cmd.exe /d /s /c "..." prevents command-stripping when multiple quotes exist
             full_cmd = '%COMSPEC% /d /s /c "' .. cmd .. '"'
         end
         local p = io.popen(full_cmd)
@@ -55,18 +54,64 @@ function PLUGIN:PostInstall(ctx)
         return out or ""
     end
 
-    -- Locate uv executable
-    local uv_exe = "uv"
+    -- 1. Locate uv executable (Direct bin, PATH, or Mise installs/shims directory)
+    local uv_exe = nil
+    local user_home = os.getenv("HOME") or os.getenv("USERPROFILE") or ""
+    local clause_bin = os.getenv("CLAUSE_BIN_DIR") or ""
+
+    local candidate_uvs = {}
+
+    if clause_bin ~= "" then
+        table.insert(candidate_uvs, clause_bin .. (is_win and "\\uv.exe" or "/uv"))
+    end
+
     if is_win then
-        local check = os.execute("where uv.exe >nul 2>&1")
-        if check ~= 0 and check ~= true then
-            error("[ClauseOS] Missing required tool: uv. Ensure uv is installed.")
-        end
+        local local_app_data = os.getenv("LOCALAPPDATA") or (user_home .. "\\AppData\\Local")
+        table.insert(candidate_uvs, local_app_data .. "\\mise\\shims\\uv.exe")
+        table.insert(candidate_uvs, local_app_data .. "\\bin\\uv.exe")
     else
-        local check = os.execute("command -v uv >/dev/null 2>&1")
-        if check ~= 0 and check ~= true then
-            error("[ClauseOS] Missing required tool: uv. Ensure uv is installed.")
+        table.insert(candidate_uvs, user_home .. "/.local/share/mise/shims/uv")
+        table.insert(candidate_uvs, user_home .. "/.local/bin/uv")
+        table.insert(candidate_uvs, "/usr/local/bin/uv")
+    end
+
+    -- Test candidates
+    for _, cand in ipairs(candidate_uvs) do
+        local f = io.open(cand, "r")
+        if f then
+            f:close()
+            uv_exe = cand
+            break
         end
+    end
+
+    -- If not found in known paths, test PATH directly
+    if not uv_exe then
+        if is_win then
+            if os.execute("where uv.exe >nul 2>&1") == 0 then
+                uv_exe = "uv.exe"
+            end
+        else
+            if os.execute("command -v uv >/dev/null 2>&1") == 0 then
+                uv_exe = "uv"
+            end
+        end
+    end
+
+    -- Fallback: inspect Mise installs directory for provisioned uv versions
+    if not uv_exe then
+        local mise_uv_base = is_win and (os.getenv("LOCALAPPDATA") .. "\\mise\\installs\\uv")
+                                   or (user_home .. "/.local/share/mise/installs/uv")
+        local p_find = capture_cmd(is_win and ('dir /b /s "' .. mise_uv_base .. '\\uv.exe" 2>nul')
+                                          or ('find "' .. mise_uv_base .. '" -type f -name uv 2>/dev/null'))
+        local first_found = p_find:match("^[^\r\n]+")
+        if first_found and first_found ~= "" then
+            uv_exe = first_found
+        end
+    end
+
+    if not uv_exe then
+        error("[ClauseOS] Missing required tool: uv. Ensure uv is installed or seeded via Mise.")
     end
 
     -- Provision directory structure
@@ -254,19 +299,19 @@ function PLUGIN:PostInstall(ctx)
         end
     end
 
-    -- Section 3: Provision isolated Python 3.12 via uv[cite: 1]
+    -- Section 3: Provision isolated Python 3.12 via uv
     if is_win then
-        run_cmd(string.format("set \"UV_PYTHON_INSTALL_DIR=%s\" && %s python install --no-bin --no-registry 3.12", private_py_dir, uv_exe))
+        run_cmd(string.format("set \"UV_PYTHON_INSTALL_DIR=%s\" && \"%s\" python install --no-bin --no-registry 3.12", private_py_dir, uv_exe))
     else
-        run_cmd(string.format("UV_PYTHON_INSTALL_DIR=\"%s\" %s python install --no-bin --no-registry 3.12", private_py_dir, uv_exe))
+        run_cmd(string.format("UV_PYTHON_INSTALL_DIR=\"%s\" \"%s\" python install --no-bin --no-registry 3.12", private_py_dir, uv_exe))
     end
 
     local base_python
     if is_win then
-        local raw_py = capture_cmd(string.format("set \"UV_PYTHON_INSTALL_DIR=%s\" && %s python find 3.12", private_py_dir, uv_exe))
+        local raw_py = capture_cmd(string.format("set \"UV_PYTHON_INSTALL_DIR=%s\" && \"%s\" python find 3.12", private_py_dir, uv_exe))
         base_python = raw_py:match("^[^\r\n]+")
     else
-        local raw_py = capture_cmd(string.format("UV_PYTHON_INSTALL_DIR=\"%s\" %s python find 3.12", private_py_dir, uv_exe))
+        local raw_py = capture_cmd(string.format("UV_PYTHON_INSTALL_DIR=\"%s\" \"%s\" python find 3.12", private_py_dir, uv_exe))
         base_python = raw_py:match("^[^\r\n]+")
     end
 
@@ -274,10 +319,10 @@ function PLUGIN:PostInstall(ctx)
         error("[ClauseOS] Unable to locate provisioned Python 3.12 in " .. private_py_dir)
     end
 
-    -- Section 4: Assemble virtual environment & runtimes[cite: 1]
-    run_cmd(string.format("%s venv \"%s\" --python \"%s\"", uv_exe, venv_dir, base_python))
+    -- Section 4: Assemble virtual environment & runtimes
+    run_cmd(string.format("\"%s\" venv \"%s\" --python \"%s\"", uv_exe, venv_dir, base_python))
 
-    -- Mark environment ownership[cite: 1]
+    -- Mark environment ownership
     local mark_path = venv_dir .. (is_win and "\\.unsloth-studio-owned" or "/.unsloth-studio-owned")
     local f_mark = io.open(mark_path, "w")
     if f_mark then
@@ -285,25 +330,29 @@ function PLUGIN:PostInstall(ctx)
         f_mark:close()
     end
 
-    -- Section 5: Install PyTorch foundation & core dependencies[cite: 1]
+    -- Section 5: Install PyTorch foundation & core dependencies
     if not skip_torch then
         run_cmd(string.format(
-            "%s pip install --python \"%s\" --default-index \"%s\" \"torch>=2.4.0,<2.12.0\" \"torchvision>=0.19.0,<0.27.0\" \"torchaudio>=2.4.0,<2.12.0\"",
+            "\"%s\" pip install --python \"%s\" --default-index \"%s\" \"torch>=2.4.0,<2.12.0\" \"torchvision>=0.19.0,<0.27.0\" \"torchaudio>=2.4.0,<2.12.0\"",
             uv_exe, python_bin, torch_index_url
         ))
 
         if torch_index_url:match("/xpu") then
-            run_cmd(string.format("%s pip install --python \"%s\" --no-deps \"bitsandbytes>=0.50.0\"", uv_exe, python_bin))
+            run_cmd(string.format("\"%s\" pip install --python \"%s\" --no-deps \"bitsandbytes>=0.50.0\"", uv_exe, python_bin))
         end
 
-        -- Query installed PyTorch version reliably across all OS shells
+        -- Query installed PyTorch version
         local installed_torch = ""
         if is_win then
-            local show_out = capture_cmd(string.format("%s pip show --python \"%s\" torch", uv_exe, python_bin))
+            local show_out = capture_cmd(string.format("\"%s\" pip show --python \"%s\" torch", uv_exe, python_bin))
             installed_torch = show_out:match("Version:%s*([^\r\n]+)") or ""
         else
-            local py_query = string.format("\"%s\" -c \"import importlib.metadata as m; print(m.version('torch'))\"", python_bin)
-            installed_torch = capture_cmd(py_query):gsub("%s+", "")
+            local show_out = capture_cmd(string.format("\"%s\" pip show --python \"%s\" torch", uv_exe, python_bin))
+            installed_torch = show_out:match("Version:%s*([^\r\n]+)") or ""
+            if not installed_torch or installed_torch == "" then
+                local py_query = string.format("\"%s\" -c \"import importlib.metadata as m; print(m.version('torch'))\"", python_bin)
+                installed_torch = capture_cmd(py_query):gsub("%s+", "")
+            end
         end
 
         local override_file = target_dir .. (is_win and "\\torch_override.txt" or "/torch_override.txt")
@@ -323,7 +372,7 @@ function PLUGIN:PostInstall(ctx)
 
         local install_ok, install_err = pcall(function()
             run_cmd(string.format(
-                "%s pip install --python \"%s\" --overrides \"%s\" \"unsloth==%s\" \"unsloth-zoo\"",
+                "\"%s\" pip install --python \"%s\" --overrides \"%s\" \"unsloth==%s\" \"unsloth-zoo\"",
                 uv_exe, python_bin, override_file, version
             ))
         end)
@@ -334,11 +383,11 @@ function PLUGIN:PostInstall(ctx)
             error(install_err)
         end
     else
-        run_cmd(string.format("%s pip install --python \"%s\" --no-deps \"unsloth==%s\" \"unsloth-zoo\"", uv_exe, python_bin, version))
-        run_cmd(string.format("%s pip install --python \"%s\" \"pydantic\"", uv_exe, python_bin))
+        run_cmd(string.format("\"%s\" pip install --python \"%s\" --no-deps \"unsloth==%s\" \"unsloth-zoo\"", uv_exe, python_bin, version))
+        run_cmd(string.format("\"%s\" pip install --python \"%s\" \"pydantic\"", uv_exe, python_bin))
     end
 
-    -- Section 6: Generate CLI trampolines[cite: 1]
+    -- Section 6: Generate CLI trampolines
     local trampoline_py = 'import sys, os; sys.argv[0] = \\"unsloth\\"; from unsloth_cli import app; sys.exit(app())'
 
     if is_win then
