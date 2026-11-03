@@ -4,4 +4,3 @@ nu   = "0.116.1"
 
 [tools]
 comfyui = "v0.43.0"
-unsloth = "2026.10.9"
