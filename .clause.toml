@@ -2,17 +2,6 @@
 mise = "2026.10.15"
 nu   = "0.116.1"
 
-[stage0]
-just = "1.59.0"
-pulumi = "3.272.0"
-
-[stage1]
-lemonade   = "v2026.42.1"
-fastflowlm = "v1.0.9"
-apm        = "v0.33.0"
-vscode     = "1.142.0"
-vscode_build_id = "1792034917"
-
 [tools]
 comfyui = "v0.43.0"
 unsloth = "2026.10.9"
