@@ -1,78 +1,47 @@
---- Returns download information for a specific version
---- Documentation: https://mise.jdx.dev/tool-plugin-development.html#preinstall-hook
+--- PreInstall hook returning package artifact
 --- @param ctx {version: string, runtimeVersion: string} Context
---- @return table Version and download information
+--- @return table
 function PLUGIN:PreInstall(ctx)
-    local version = ctx.version
-    -- ctx.runtimeVersion contains the full version string if needed
+    local version = ctx.version:gsub("^v", "")
 
-    -- Example 1: Simple binary download
-    -- local url = "https://github.com/<GITHUB_USER>/<GITHUB_REPO>/releases/download/v" .. version .. "/<TOOL>-linux-amd64"
+    -- Direct download of the wheel or sdist from PyPI
+    local http = require("http")
+    local json = require("json")
 
-    -- Example 2: Platform-specific binary
-    -- local platform = get_platform() -- Uncomment the helper function below
-    -- local url = "https://github.com/<GITHUB_USER>/<GITHUB_REPO>/releases/download/v" .. version .. "/<TOOL>-" .. platform
+    local resp, err = http.get({
+        url = string.format("https://pypi.org/pypi/unsloth/%s/json", version),
+    })
 
-    -- Example 3: Archive (tar.gz, zip) - mise will extract automatically
-    -- local url = "https://github.com/<GITHUB_USER>/<GITHUB_REPO>/releases/download/v" .. version .. "/<TOOL>-" .. version .. "-linux-amd64.tar.gz"
+    local download_url = nil
+    local sha256_hash = nil
 
-    -- Example 4: Raw file from repository
-    -- local url = "https://raw.githubusercontent.com/<GITHUB_USER>/<GITHUB_REPO>/" .. version .. "/bin/<TOOL>"
+    if err == nil and resp.status_code == 200 then
+        local data = json.decode(resp.body)
+        if data.urls and #data.urls > 0 then
+            -- Prefer wheel (.whl), fallback to first available
+            for _, file in ipairs(data.urls) do
+                if file.url:match("%.whl$") then
+                    download_url = file.url
+                    sha256_hash = file.digests and file.digests.sha256
+                    break
+                end
+            end
+            if not download_url then
+                download_url = data.urls[1].url
+                sha256_hash = data.urls[1].digests and data.urls[1].digests.sha256
+            end
+        end
+    end
 
-    -- Replace with your actual download URL pattern
-    local url = "https://example.com/<TOOL>/releases/download/" .. version .. "/<TOOL>"
-
-    -- Optional: Fetch checksum for verification
-    -- local sha256 = fetch_checksum(version) -- Implement if checksums are available
+    if not download_url then
+        -- Fallback URL to satisfy Mise's fetcher
+        download_url = string.format("https://pypi.org/packages/source/u/unsloth/unsloth-%s.tar.gz", version)
+    end
 
     return {
         version = version,
-        url = url,
-        -- sha256 = sha256, -- Optional but recommended for security
-        note = "Downloading <TOOL> " .. version,
-        -- addition = { -- Optional: download additional components
-        --     {
-        --         name = "component",
-        --         url = "https://example.com/component.tar.gz"
-        --     }
-        -- }
+        url = download_url,
+        sha256 = sha256_hash,
+        note = string.format("Deploying Unsloth AI Engine v%s...", version),
     }
 end
-
--- Helper function for platform detection (uncomment and modify as needed)
---[[
-local function get_platform()
-    -- RUNTIME object is provided by mise/vfox
-    -- RUNTIME.osType: "Windows", "Linux", "Darwin"
-    -- RUNTIME.archType: "amd64", "386", "arm64", etc.
-
-    local os_name = RUNTIME.osType:lower()
-    local arch = RUNTIME.archType
-
-    -- Map to your tool's platform naming convention
-    -- Adjust these mappings based on how your tool names its releases
-    local platform_map = {
-        ["darwin"] = {
-            ["amd64"] = "darwin-amd64",
-            ["arm64"] = "darwin-arm64",
-        },
-        ["linux"] = {
-            ["amd64"] = "linux-amd64",
-            ["arm64"] = "linux-arm64",
-            ["386"] = "linux-386",
-        },
-        ["windows"] = {
-            ["amd64"] = "windows-amd64",
-            ["386"] = "windows-386",
-        }
-    }
-
-    local os_map = platform_map[os_name]
-    if os_map then
-        return os_map[arch] or "linux-amd64"  -- fallback
-    end
-
-    -- Default fallback
-    return "linux-amd64"
-end
---]]
