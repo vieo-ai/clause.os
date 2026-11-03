@@ -41,9 +41,14 @@ function PLUGIN:PostInstall(ctx)
         end
     end
 
-    -- Helper to capture command output
+    -- Helper to capture command output with robust Windows quoting
     local function capture_cmd(cmd)
-        local p = io.popen(cmd)
+        local full_cmd = cmd
+        if is_win then
+            -- cmd.exe /d /s /c "..." prevents command-stripping when multiple quotes exist
+            full_cmd = '%COMSPEC% /d /s /c "' .. cmd .. '"'
+        end
+        local p = io.popen(full_cmd)
         if not p then return "" end
         local out = p:read("*a")
         p:close()
@@ -249,12 +254,11 @@ function PLUGIN:PostInstall(ctx)
         end
     end
 
-    -- Section 3: Provision isolated Python 3.12 via uv
-    local uv_env = string.format("UV_PYTHON_INSTALL_DIR=\"%s\"", private_py_dir)
+    -- Section 3: Provision isolated Python 3.12 via uv[cite: 1]
     if is_win then
         run_cmd(string.format("set \"UV_PYTHON_INSTALL_DIR=%s\" && %s python install --no-bin --no-registry 3.12", private_py_dir, uv_exe))
     else
-        run_cmd(string.format("%s %s python install --no-bin --no-registry 3.12", uv_env, uv_exe))
+        run_cmd(string.format("UV_PYTHON_INSTALL_DIR=\"%s\" %s python install --no-bin --no-registry 3.12", private_py_dir, uv_exe))
     end
 
     local base_python
@@ -262,7 +266,7 @@ function PLUGIN:PostInstall(ctx)
         local raw_py = capture_cmd(string.format("set \"UV_PYTHON_INSTALL_DIR=%s\" && %s python find 3.12", private_py_dir, uv_exe))
         base_python = raw_py:match("^[^\r\n]+")
     else
-        local raw_py = capture_cmd(string.format("%s %s python find 3.12", uv_env, uv_exe))
+        local raw_py = capture_cmd(string.format("UV_PYTHON_INSTALL_DIR=\"%s\" %s python find 3.12", private_py_dir, uv_exe))
         base_python = raw_py:match("^[^\r\n]+")
     end
 
@@ -270,10 +274,10 @@ function PLUGIN:PostInstall(ctx)
         error("[ClauseOS] Unable to locate provisioned Python 3.12 in " .. private_py_dir)
     end
 
-    -- Section 4: Assemble virtual environment & runtimes
+    -- Section 4: Assemble virtual environment & runtimes[cite: 1]
     run_cmd(string.format("%s venv \"%s\" --python \"%s\"", uv_exe, venv_dir, base_python))
 
-    -- Mark environment ownership
+    -- Mark environment ownership[cite: 1]
     local mark_path = venv_dir .. (is_win and "\\.unsloth-studio-owned" or "/.unsloth-studio-owned")
     local f_mark = io.open(mark_path, "w")
     if f_mark then
@@ -281,7 +285,7 @@ function PLUGIN:PostInstall(ctx)
         f_mark:close()
     end
 
-    -- Section 5: Install PyTorch foundation & core dependencies
+    -- Section 5: Install PyTorch foundation & core dependencies[cite: 1]
     if not skip_torch then
         run_cmd(string.format(
             "%s pip install --python \"%s\" --default-index \"%s\" \"torch>=2.4.0,<2.12.0\" \"torchvision>=0.19.0,<0.27.0\" \"torchaudio>=2.4.0,<2.12.0\"",
@@ -292,13 +296,24 @@ function PLUGIN:PostInstall(ctx)
             run_cmd(string.format("%s pip install --python \"%s\" --no-deps \"bitsandbytes>=0.50.0\"", uv_exe, python_bin))
         end
 
-        local py_query = string.format("\"%s\" -c \"import importlib.metadata as m; print(m.version('torch'))\"", python_bin)
-        local installed_torch = capture_cmd(py_query):gsub("%s+", "")
-        local override_file = target_dir .. (is_win and "\\torch_override.txt" or "/torch_override.txt")
+        -- Query installed PyTorch version reliably across all OS shells
+        local installed_torch = ""
+        if is_win then
+            local show_out = capture_cmd(string.format("%s pip show --python \"%s\" torch", uv_exe, python_bin))
+            installed_torch = show_out:match("Version:%s*([^\r\n]+)") or ""
+        else
+            local py_query = string.format("\"%s\" -c \"import importlib.metadata as m; print(m.version('torch'))\"", python_bin)
+            installed_torch = capture_cmd(py_query):gsub("%s+", "")
+        end
 
+        local override_file = target_dir .. (is_win and "\\torch_override.txt" or "/torch_override.txt")
         local f_over = io.open(override_file, "w")
         if f_over then
-            f_over:write(string.format("torch==%s\ntorchvision\ntorchaudio\n", installed_torch))
+            if installed_torch and installed_torch ~= "" then
+                f_over:write(string.format("torch==%s\ntorchvision\ntorchaudio\n", installed_torch))
+            else
+                f_over:write("torch\ntorchvision\ntorchaudio\n")
+            end
             -- xformers has no binary wheels for macOS and fails compiling - skip on Darwin
             if is_mac then
                 f_over:write("xformers; sys_platform != 'darwin'\n")
@@ -323,7 +338,7 @@ function PLUGIN:PostInstall(ctx)
         run_cmd(string.format("%s pip install --python \"%s\" \"pydantic\"", uv_exe, python_bin))
     end
 
-    -- Section 6: Generate CLI trampolines
+    -- Section 6: Generate CLI trampolines[cite: 1]
     local trampoline_py = 'import sys, os; sys.argv[0] = \\"unsloth\\"; from unsloth_cli import app; sys.exit(app())'
 
     if is_win then
