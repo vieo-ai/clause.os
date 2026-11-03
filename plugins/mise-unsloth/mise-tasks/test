@@ -8,7 +8,7 @@ mise plugin link --force unsloth .
 mise cache clear
 
 # 2. Query available versions and grab the latest
-TEST_VERSION=$(mise plugins ls-remote unsloth | tail -n 1 | tr -d '[:space:]')
+TEST_VERSION=$(mise ls-remote unsloth | tail -n 1 | tr -d '[:space:]')
 if [ -z "$TEST_VERSION" ]; then
     # Fallback default if remote list isn't populated yet
     TEST_VERSION="2024.12.7"
