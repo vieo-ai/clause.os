@@ -75,7 +75,7 @@ function PLUGIN:PostInstall(ctx)
         table.insert(candidate_uvs, "/usr/local/bin/uv")
     end
 
-    -- Test candidates
+    -- Test candidate paths
     for _, cand in ipairs(candidate_uvs) do
         local f = io.open(cand, "r")
         if f then
@@ -299,30 +299,67 @@ function PLUGIN:PostInstall(ctx)
         end
     end
 
-    -- Section 3: Provision isolated Python 3.12 via uv
+    -- Section 3: Provision isolated Python 3.12 via uv[cite: 1]
     if is_win then
         run_cmd(string.format("set \"UV_PYTHON_INSTALL_DIR=%s\" && \"%s\" python install --no-bin --no-registry 3.12", private_py_dir, uv_exe))
     else
         run_cmd(string.format("UV_PYTHON_INSTALL_DIR=\"%s\" \"%s\" python install --no-bin --no-registry 3.12", private_py_dir, uv_exe))
     end
 
-    local base_python
+    -- Locate provisioned Python executable
+    local base_python = nil
+
+    -- 1. Try uv python find first
+    local raw_py = ""
     if is_win then
-        local raw_py = capture_cmd(string.format("set \"UV_PYTHON_INSTALL_DIR=%s\" && \"%s\" python find 3.12", private_py_dir, uv_exe))
-        base_python = raw_py:match("^[^\r\n]+")
+        raw_py = capture_cmd(string.format("set \"UV_PYTHON_INSTALL_DIR=%s\" && \"%s\" python find 3.12", private_py_dir, uv_exe))
     else
-        local raw_py = capture_cmd(string.format("UV_PYTHON_INSTALL_DIR=\"%s\" \"%s\" python find 3.12", private_py_dir, uv_exe))
-        base_python = raw_py:match("^[^\r\n]+")
+        raw_py = capture_cmd(string.format("UV_PYTHON_INSTALL_DIR=\"%s\" \"%s\" python find 3.12", private_py_dir, uv_exe))
+    end
+
+    for line in raw_py:gmatch("[^\r\n]+") do
+        local trimmed = line:gsub("^%s+", ""):gsub("%s+$", "")
+        if trimmed ~= "" and not trimmed:find(" ") and (trimmed:find("python") or trimmed:find("Python")) then
+            local f = io.open(trimmed, "r")
+            if f then
+                f:close()
+                base_python = trimmed
+                break
+            end
+        end
+    end
+
+    -- 2. Filesystem search fallback inside private_py_dir
+    if not base_python then
+        if is_win then
+            local p_scan = capture_cmd(string.format('dir /b /s "%s\\python.exe" 2>nul', private_py_dir))
+            for line in p_scan:gmatch("[^\r\n]+") do
+                local trimmed = line:gsub("^%s+", ""):gsub("%s+$", "")
+                if trimmed ~= "" and trimmed:find("cpython%-3%.12") then
+                    base_python = trimmed
+                    break
+                end
+            end
+        else
+            local p_scan = capture_cmd(string.format('find "%s" -type f \\( -name "python3.12" -o -name "python3" \\) 2>/dev/null', private_py_dir))
+            for line in p_scan:gmatch("[^\r\n]+") do
+                local trimmed = line:gsub("^%s+", ""):gsub("%s+$", "")
+                if trimmed ~= "" and trimmed:find("bin/python") then
+                    base_python = trimmed
+                    break
+                end
+            end
+        end
     end
 
     if not base_python or base_python == "" then
         error("[ClauseOS] Unable to locate provisioned Python 3.12 in " .. private_py_dir)
     end
 
-    -- Section 4: Assemble virtual environment & runtimes
+    -- Section 4: Assemble virtual environment & runtimes[cite: 1]
     run_cmd(string.format("\"%s\" venv \"%s\" --python \"%s\"", uv_exe, venv_dir, base_python))
 
-    -- Mark environment ownership
+    -- Mark environment ownership[cite: 1]
     local mark_path = venv_dir .. (is_win and "\\.unsloth-studio-owned" or "/.unsloth-studio-owned")
     local f_mark = io.open(mark_path, "w")
     if f_mark then
@@ -330,7 +367,7 @@ function PLUGIN:PostInstall(ctx)
         f_mark:close()
     end
 
-    -- Section 5: Install PyTorch foundation & core dependencies
+    -- Section 5: Install PyTorch foundation & core dependencies[cite: 1]
     if not skip_torch then
         run_cmd(string.format(
             "\"%s\" pip install --python \"%s\" --default-index \"%s\" \"torch>=2.4.0,<2.12.0\" \"torchvision>=0.19.0,<0.27.0\" \"torchaudio>=2.4.0,<2.12.0\"",
@@ -342,23 +379,19 @@ function PLUGIN:PostInstall(ctx)
         end
 
         -- Query installed PyTorch version
-        local installed_torch = ""
-        if is_win then
-            local show_out = capture_cmd(string.format("\"%s\" pip show --python \"%s\" torch", uv_exe, python_bin))
-            installed_torch = show_out:match("Version:%s*([^\r\n]+)") or ""
-        else
-            local show_out = capture_cmd(string.format("\"%s\" pip show --python \"%s\" torch", uv_exe, python_bin))
-            installed_torch = show_out:match("Version:%s*([^\r\n]+)") or ""
-            if not installed_torch or installed_torch == "" then
-                local py_query = string.format("\"%s\" -c \"import importlib.metadata as m; print(m.version('torch'))\"", python_bin)
-                installed_torch = capture_cmd(py_query):gsub("%s+", "")
-            end
+        local show_out = capture_cmd(string.format("\"%s\" pip show --python \"%s\" torch", uv_exe, python_bin))
+        local installed_torch = show_out:match("Version:%s*([^\r\n]+)") or ""
+        installed_torch = installed_torch:gsub("%s+", "")
+
+        if installed_torch == "" then
+            local py_query = string.format("\"%s\" -c \"import importlib.metadata as m; print(m.version('torch'))\"", python_bin)
+            installed_torch = capture_cmd(py_query):gsub("%s+", "")
         end
 
         local override_file = target_dir .. (is_win and "\\torch_override.txt" or "/torch_override.txt")
         local f_over = io.open(override_file, "w")
         if f_over then
-            if installed_torch and installed_torch ~= "" then
+            if installed_torch ~= "" then
                 f_over:write(string.format("torch==%s\ntorchvision\ntorchaudio\n", installed_torch))
             else
                 f_over:write("torch\ntorchvision\ntorchaudio\n")
@@ -387,7 +420,7 @@ function PLUGIN:PostInstall(ctx)
         run_cmd(string.format("\"%s\" pip install --python \"%s\" \"pydantic\"", uv_exe, python_bin))
     end
 
-    -- Section 6: Generate CLI trampolines
+    -- Section 6: Generate CLI trampolines[cite: 1]
     local trampoline_py = 'import sys, os; sys.argv[0] = \\"unsloth\\"; from unsloth_cli import app; sys.exit(app())'
 
     if is_win then
