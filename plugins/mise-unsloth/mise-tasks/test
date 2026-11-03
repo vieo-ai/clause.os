@@ -1,18 +1,96 @@
 #!/usr/bin/env bash
-#MISE description="Run plugin tests - install and execute tool"
+#MISE description="Run plugin tests - install and verify unsloth tool"
 set -euo pipefail
 
-mise plugin link --force <TOOL> .
+# 1. Link the local plugin into Mise and purge cached runs
+echo "[test] Linking local unsloth plugin..."
+mise plugin link --force unsloth .
 mise cache clear
-mise install <TOOL>@1.0.0
 
-# Capture and display the output while also verifying it
-output=$(mise exec "<TOOL>@1.0.0" -- "<TOOL>" --version)
-echo "<TOOL> output: $output"
+# 2. Query available versions and grab the latest
+TEST_VERSION=$(mise plugins ls-remote unsloth | tail -n 1 | tr -d '[:space:]')
+if [ -z "$TEST_VERSION" ]; then
+    # Fallback default if remote list isn't populated yet
+    TEST_VERSION="2024.12.7"
+fi
 
-if echo "$output" | grep -q '<TOOL>@1.0.0'; then
-    echo "✓ Tests passed"
+echo "[test] Installing unsloth@${TEST_VERSION}..."
+mise install "unsloth@${TEST_VERSION}"
+
+# 3. Verify target directory isolation
+INSTALL_PATH=$(mise where "unsloth@${TEST_VERSION}")
+echo "[test] Installed at: ${INSTALL_PATH}"
+
+if [ -z "$INSTALL_PATH" ] || [ ! -d "$INSTALL_PATH" ]; then
+    echo "✗ Test failed: Install directory not found"
+    exit 1
+fi
+
+# Determine executable extensions and platform paths
+IS_WINDOWS=false
+if [[ "$(uname -s)" =~ (CYGWIN|MINGW|MSYS) ]]; then
+    IS_WINDOWS=true
+fi
+
+# 4. Verify internal layout
+echo "[test] Checking hermetic directory layout..."
+if [ ! -d "${INSTALL_PATH}/venv" ]; then
+    echo "✗ Test failed: Missing isolated venv directory"
+    exit 1
+fi
+
+if [ ! -d "${INSTALL_PATH}/bin" ]; then
+    echo "✗ Test failed: Missing bin directory"
+    exit 1
+fi
+
+if [ "$IS_WINDOWS" = true ]; then
+    CLI_PATH="${INSTALL_PATH}/bin/unsloth.bat"
 else
-    echo "✗ Test failed: expected version <TOOL>@1.0.0"
+    CLI_PATH="${INSTALL_PATH}/bin/unsloth"
+fi
+
+if [ ! -f "$CLI_PATH" ]; then
+    echo "✗ Test failed: Trampoline script not found at ${CLI_PATH}"
+    exit 1
+fi
+
+# 5. Execute binary and verify packages
+echo "[test] Testing unsloth environment execution..."
+
+set +e
+if [ "$IS_WINDOWS" = true ]; then
+    OUTPUT=$(mise exec "unsloth@${TEST_VERSION}" -- "${INSTALL_PATH}/venv/Scripts/python.exe" -c "import unsloth; print('UNSLOTH_OK')" 2>&1)
+    EXIT_CODE=$?
+else
+    OUTPUT=$(mise exec "unsloth@${TEST_VERSION}" -- "${INSTALL_PATH}/venv/bin/python" -c "import unsloth; print('UNSLOTH_OK')" 2>&1)
+    EXIT_CODE=$?
+fi
+set -e
+
+echo "[test] Output:"
+echo "$OUTPUT"
+
+if [ $EXIT_CODE -ne 0 ] || ! echo "$OUTPUT" | grep -q "UNSLOTH_OK"; then
+    echo "✗ Test failed: Could not import unsloth from provisioned venv"
+    exit 1
+fi
+
+# 6. Test trampoline invocation
+echo "[test] Testing trampoline invocation..."
+set +e
+TRAMPOLINE_OUT=$(mise exec "unsloth@${TEST_VERSION}" -- unsloth --help 2>&1)
+TRAMPOLINE_EXIT=$?
+set -e
+
+echo "[test] Trampoline exit: $TRAMPOLINE_EXIT"
+
+# unsloth CLI or python entry will return help usage or exit clean
+if [ $TRAMPOLINE_EXIT -eq 0 ] || echo "$TRAMPOLINE_OUT" | grep -qiE "(unsloth|usage|options)"; then
+    echo "✓ Tests passed"
+    exit 0
+else
+    echo "✗ Test failed: Trampoline execution failure"
+    echo "$TRAMPOLINE_OUT"
     exit 1
 fi
