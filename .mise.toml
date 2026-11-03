@@ -15,9 +15,10 @@ _.path = [
 ]
 
 [plugins]
-lemonade     = "https://github.com/vieo-ai/mise-lemonade.git"
-fastflowlm   = "https://github.com/vieo-ai/mise-fastflowlm.git"
-code         = "https://github.com/vieo-ai/mise-vscode.git"
+lemonade        = "https://github.com/vieo-ai/mise-lemonade.git"
+fastflowlm      = "https://github.com/vieo-ai/mise-fastflowlm.git"
+code            = "https://github.com/vieo-ai/mise-vscode.git"
+unsloth         = "https://github.com/vieo-ai/mise-unsloth.git"
 
 [tools]
 # --- 1. CORE LANGUAGE RUNTIMES & COMPILERS (BEAM ECOSYSTEM) ---
@@ -48,6 +49,7 @@ boundary  = "0.21.3"
 apm        = "v0.33.0"
 lemonade   = "2026.44.1"
 fastflowlm = "1.0.9"
+unsloth    = "2026.10.9"
 
 # --- 6. DEVELOPMENT ENVIRONMENT & UTILITIES ---
 # Local developer utilities, editors, or helper tools that don't deploy to production.
