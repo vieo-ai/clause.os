@@ -1,11 +1,13 @@
---- PostInstall hook: Executes the full hermetic deployment matrix
---- @param ctx {rootPath: string, runtimeVersion: string, sdkInfo: table} Context
+--- plugins/mise-unsloth/hooks/post_install.lua
 function PLUGIN:PostInstall(ctx)
     local sdkInfo = ctx.sdkInfo[PLUGIN.name]
     local target_dir = sdkInfo.path
-    local version = ctx.version:gsub("^v", "")
-    local os_type = RUNTIME.osType:lower()
 
+    -- Version is located inside sdkInfo table in Mise's PostInstall context
+    local raw_version = (sdkInfo and sdkInfo.version) or ctx.runtimeVersion or ctx.version or "latest"
+    local version = tostring(raw_version):gsub("^v", "")
+
+    local os_type = RUNTIME.osType:lower()
     local is_win = (os_type == "windows")
     local is_mac = (os_type == "darwin")
 
@@ -246,7 +248,6 @@ function PLUGIN:PostInstall(ctx)
     end
 
     -- Section 3: Provision isolated Python 3.12 via uv
-    -- Keep python isolated to the tool instance
     local uv_env = string.format("UV_PYTHON_INSTALL_DIR=\"%s\"", private_py_dir)
     if is_win then
         run_cmd(string.format("set \"UV_PYTHON_INSTALL_DIR=%s\" && %s python install --no-bin --no-registry 3.12", private_py_dir, uv_exe))
@@ -285,12 +286,10 @@ function PLUGIN:PostInstall(ctx)
             uv_exe, python_bin, torch_index_url
         ))
 
-        -- If Intel XPU was chosen, inject XPU bitsandbytes
         if torch_index_url:match("/xpu") then
             run_cmd(string.format("%s pip install --python \"%s\" --no-deps \"bitsandbytes>=0.50.0\"", uv_exe, python_bin))
         end
 
-        -- Pin PyTorch version to override file to prevent unsloth dependency downgrade
         local py_query = string.format("\"%s\" -c \"import importlib.metadata as m; print(m.version('torch'))\"", python_bin)
         local installed_torch = capture_cmd(py_query):gsub("%s+", "")
         local override_file = target_dir .. (is_win and "\\torch_override.txt" or "/torch_override.txt")
@@ -314,7 +313,6 @@ function PLUGIN:PostInstall(ctx)
             error(install_err)
         end
     else
-        -- Intel Mac / No-Torch fallback
         run_cmd(string.format("%s pip install --python \"%s\" --no-deps \"unsloth==%s\" \"unsloth-zoo\"", uv_exe, python_bin, version))
         run_cmd(string.format("%s pip install --python \"%s\" \"pydantic\"", uv_exe, python_bin))
     end
