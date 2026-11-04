@@ -221,7 +221,7 @@ function PLUGIN:PostInstall(ctx)
             torch_index_url = pytorch_base_url .. "/" .. cuda_tag
             log("Detected NVIDIA GPU (CUDA " .. tostring(cuda_major) .. "." .. tostring(cuda_minor) .. ") -> Target Index: " .. torch_index_url, "INFO")
         else
-            -- 2. Probe AMD ROCm on Windows (Using wmic or base64 PowerShell to bypass cmd quoting failure)
+            -- 2. Probe AMD ROCm on Windows
             local gpu_names = capture_cmd("wmic path win32_videocontroller get name 2>nul")
             if not gpu_names:find("Name") then
                 -- Base64 encoded: Get-CimInstance Win32_VideoController | Select-Object -ExpandProperty Name
@@ -438,6 +438,8 @@ function PLUGIN:PostInstall(ctx)
         local f_over = io.open(override_file, "w")
         if f_over then
             f_over:write("torch==" .. installed_torch .. "\ntorchvision\ntorchaudio\n")
+            -- Exclude xformers on macOS where no pre-built wheels exist
+            f_over:write("xformers; sys_platform != 'darwin'\n")
             f_over:close()
         end
 
