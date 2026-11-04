@@ -31,6 +31,9 @@ on:
       - 'justfile'
       - '.github/workflows/**'
 
+permissions:
+  contents: read
+
 jobs:
   # ---------------------------------------------------------------------------
   # Step 1: Detect Runner Availability
@@ -74,14 +77,20 @@ jobs:
 
     runs-on: ${{ matrix.runner }}
 
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      MISE_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Configure Git Settings
+      - name: Configure Git Settings & Auth
         run: |
-          git config core.fileMode false
-          git config core.symlinks true
+          git config --global core.fileMode false
+          git config --global core.symlinks true
+          git config --global url."https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf "https://github.com/"
 
       # --- POSIX Test & Systems Assertion Suite (Linux & macOS) ---
       - name: Test ClauseOS Stage 0 Boot & Assertion Suite (POSIX)
@@ -96,7 +105,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: powershell
         run: |
-          set CI=true
+          $env:CI = "true"
           .\cx.ps1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           # .\cx.ps1 test
