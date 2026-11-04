@@ -268,7 +268,7 @@ $MiseNu = Join-Path $NuConfigDir "mise.nu"
 if ((Test-Path $MiseBin) -and (Test-Path $NuBin)) {
     Write-ClauseLog "Syncing Mise Nushell overlay..." -Level INFO
     try {
-        & $NuBin -c "^'$MiseBin' activate nu | save '$MiseNu' --force"
+        & $NuBin -c "with-env { MISE_DISABLE_TOOLS: '1' } { ^'$MiseBin' activate nu | save '$MiseNu' --force }"
     } catch {
         Write-ClauseLog "Failed to sync Mise overlay with Nushell: $_" -Level ERROR
     }
@@ -278,7 +278,7 @@ if ((Test-Path $MiseBin) -and (Test-Path $NuBin)) {
 # STAGE 2: TOOLCHAIN INSTALLATION (MISE)
 # ==============================================================================
 Write-ClauseLog "Finalizing ClauseOS toolchain installation..." -Level INFO
-& $MiseBin install
+& $MiseBin install --yes
 if ($LASTEXITCODE -ne 0) {
     Write-ClauseLog "Mise installation failed with exit code $LASTEXITCODE" -Level FATAL
     exit $LASTEXITCODE
