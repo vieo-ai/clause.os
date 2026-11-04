@@ -195,7 +195,7 @@ MISE_NU="${NU_CONFIG_DIR}/mise.nu"
 
 if [ -x "$MISE_BIN" ] && [ -x "$NU_BIN" ]; then
     write_clause_log "Syncing Mise Nushell overlay..." "INFO"
-    "$NU_BIN" -c "^'$MISE_BIN' activate nu | save '$MISE_NU' --force" || {
+    "$NU_BIN" -c "with-env { MISE_DISABLE_TOOLS: '1' } { ^'$MISE_BIN' activate nu | save '$MISE_NU' --force }" || {
         write_clause_log "Failed to sync Mise overlay with Nushell" "ERROR"
     }
 fi
@@ -204,7 +204,7 @@ fi
 # STAGE 2: TOOLCHAIN INSTALLATION (MISE)
 # ==============================================================================
 write_clause_log "Finalizing ClauseOS toolchain installation..." "INFO"
-"$MISE_BIN" install
+"$MISE_BIN" install --yes
 
 MISE_SHIMS="${CLAUSE_HOME}/.local/share/mise/shims"
 if [ -d "$MISE_SHIMS" ]; then
