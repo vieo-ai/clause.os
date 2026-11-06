@@ -5,9 +5,10 @@ function PLUGIN:PostInstall(ctx)
     local sdkInfo = ctx.sdkInfo[PLUGIN.name]
     local target_dir = sdkInfo.path
 
-    -- Resolve Version (matching parameter $Version)
+    -- Preserve both raw and normalized versions
     local raw_version = (sdkInfo and sdkInfo.version) or ctx.runtimeVersion or ctx.version or "latest"
-    local version = tostring(raw_version):gsub("^v", "")
+    local raw_tag = tostring(raw_version)
+    local version = raw_tag:gsub("^v", "")
 
     local os_type = RUNTIME.osType:lower()
     local is_win = (os_type == "windows")
@@ -130,7 +131,7 @@ function PLUGIN:PostInstall(ctx)
         error("[comfyui] Missing prerequisite: uv")
     end
 
-    write_clause_log("Initializing Hermetic ComfyUI Studio Deployment (" .. version .. ")...", "INFO")
+    write_clause_log("Initializing Hermetic ComfyUI Studio Deployment (" .. raw_tag .. ")...", "INFO")
 
     local clause_temp_dir = os.getenv("CLAUSE_TEMP_DIR") or (is_win and (os.getenv("TEMP") or target_dir) or "/tmp")
     local clause_cache_dir = os.getenv("CLAUSE_CACHE_DIR") or join_path(target_dir, "cache")
@@ -169,16 +170,47 @@ function PLUGIN:PostInstall(ctx)
     -- 2. STAGE COMFYUI REPOSITORY
     -- ==============================================================================
     if not test_path(main_py) then
-        write_clause_log("Cloning ComfyUI source (" .. version .. ")...", "INFO")
+        write_clause_log("Cloning ComfyUI source (" .. raw_tag .. ")...", "INFO")
         local git_available = (is_win and os.execute("where git.exe >nul 2>&1") == 0) or (not is_win and os.execute("command -v git >/dev/null 2>&1") == 0)
 
+        local cloned = false
         if git_available then
-            local tag_arg = (version ~= "latest" and version ~= "") and ("--branch " .. version) or ""
-            run_cmd(string.format('git clone --depth 1 %s https://github.com/Comfy-Org/ComfyUI.git "%s"', tag_arg, source_dir))
-        else
-            -- Fallback archive download if git is not on path (matching Section 2)
-            local archive_url = (version ~= "latest" and version ~= "")
-                and string.format("https://github.com/Comfy-Org/ComfyUI/archive/refs/tags/%s.zip", version)
+            local function try_clone(branch_candidate)
+                local branch_arg = (branch_candidate ~= "latest" and branch_candidate ~= "") and ("--branch " .. branch_candidate) or ""
+                local cmd = string.format('git clone --depth 1 %s https://github.com/Comfy-Org/ComfyUI.git "%s"', branch_arg, source_dir)
+                local res = os.execute(cmd)
+                if res == 0 or res == true then
+                    return true
+                end
+                -- Clean up any residual folder on failure to prevent "destination already exists" on retry
+                if is_win then
+                    os.execute(string.format('if exist "%s" rd /s /q "%s" >nul 2>&1', source_dir, source_dir))
+                else
+                    os.execute(string.format('rm -rf "%s"', source_dir))
+                end
+                return false
+            end
+
+            -- Try 1: Exact raw tag (e.g., v0.43.0)
+            if raw_tag ~= "latest" and raw_tag ~= "" then
+                cloned = try_clone(raw_tag)
+                -- Try 2: Stripped tag if raw tag failed (e.g., 0.43.0)
+                if not cloned and version ~= raw_tag then
+                    cloned = try_clone(version)
+                end
+            end
+
+            -- Try 3: Default branch if specific tags were not found or if version was "latest"
+            if not cloned then
+                cloned = try_clone("latest")
+            end
+        end
+
+        if not cloned then
+            -- Fallback archive download if git is unavailable or git clone failed
+            local archive_candidate = raw_tag ~= "latest" and raw_tag or version
+            local archive_url = (archive_candidate ~= "latest" and archive_candidate ~= "")
+                and string.format("https://github.com/Comfy-Org/ComfyUI/archive/refs/tags/%s.zip", archive_candidate)
                 or "https://github.com/Comfy-Org/ComfyUI/archive/refs/heads/master.zip"
 
             local zip_path = join_path(clause_temp_dir, "comfyui.zip")
