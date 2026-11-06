@@ -343,6 +343,55 @@ if ($MissingTools.Count -gt 0) {
 }
 
 # ==============================================================================
+# STAGE 2.5: REBAR3 WINDOWS CMD TRAMPOLINE GENERATION
+# ==============================================================================
+if ($IsOSWindows) {
+    Write-ClauseLog "Checking Rebar3 Windows launcher configuration..." -Level DEBUG
+    
+    $MiseInstallsBase = Join-Path $env:CLAUSE_HOME "AppData\Local\mise\installs"
+    $Rebar3Dir = Join-Path $MiseInstallsBase "rebar"
+
+    if (Test-Path $Rebar3Dir) {
+        # Scan all installed rebar3 versions
+        Get-ChildItem -Path $Rebar3Dir -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+            $VersionDir = $_.FullName
+            $RebarFile = Join-Path $VersionDir "rebar3"
+            $RebarCmd  = Join-Path $VersionDir "rebar3.cmd"
+
+            # If the raw rebar3 escript exists but lacks a Windows launcher, create it
+            if ((Test-Path $RebarFile) -and (-not (Test-Path $RebarCmd))) {
+                Write-ClauseLog "Generating rebar3.cmd launcher in: $VersionDir" -Level INFO
+                
+                # Idiomatic OTP escript trampoline matching standard Erlang rebar3 distribution
+                $CmdContent = @"
+@echo off
+setlocal
+set PATH=%~dp0;%PATH%
+escript "%~dp0rebar3" %*
+"@
+                Set-Content -LiteralPath $RebarCmd -Value $CmdContent -Encoding ASCII
+            }
+        }
+    }
+
+    # Also place a trampoline into the primary ClauseOS bin folder if rebar3 is present
+    $ClauseBin = $env:CLAUSE_BIN_DIR
+    if ($ClauseBin -and (Test-Path $ClauseBin)) {
+        $RootRebar = Join-Path $ClauseBin "rebar3"
+        $RootRebarCmd = Join-Path $ClauseBin "rebar3.cmd"
+        if ((Test-Path $RootRebar) -and (-not (Test-Path $RootRebarCmd))) {
+            $CmdContent = @"
+@echo off
+setlocal
+set PATH=%~dp0;%PATH%
+escript "%~dp0rebar3" %*
+"@
+            Set-Content -LiteralPath $RootRebarCmd -Value $CmdContent -Encoding ASCII
+        }
+    }
+}
+
+# ==============================================================================
 # STAGE 3: NUSHELL HANDOFF (CLI, CI/CD NON-INTERACTIVE, & TTY ROUTING)
 # ==============================================================================
 Set-Location -Path $ProjectRoot
