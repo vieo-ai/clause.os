@@ -1,10 +1,11 @@
---- Performs hermetic setup and hardware-aware installation after Mise provisions the root path
+--- Performs additional setup after installation
 --- Documentation: https://mise.jdx.dev/tool-plugin-development.html#postinstall-hook
 --- @param ctx {rootPath: string, runtimeVersion: string, sdkInfo: table} Context
 function PLUGIN:PostInstall(ctx)
     local sdkInfo = ctx.sdkInfo[PLUGIN.name]
     local target_dir = sdkInfo.path
 
+    -- Resolve Version (matching parameter $Version)
     local raw_version = (sdkInfo and sdkInfo.version) or ctx.runtimeVersion or ctx.version or "latest"
     local version = tostring(raw_version):gsub("^v", "")
 
@@ -32,7 +33,7 @@ function PLUGIN:PostInstall(ctx)
     end
 
     -- Idiomatic Mise logging via stderr
-    local function log(msg, level)
+    local function write_clause_log(msg, level)
         io.stderr:write(string.format("[comfyui][%s] %s\n", level or "INFO", msg))
     end
 
@@ -69,12 +70,12 @@ function PLUGIN:PostInstall(ctx)
     local shim_bat = join_path(shim_dir, "comfyui.bat")
     local shim_sh = join_path(shim_dir, "comfyui")
 
-    -- Fast-path idempotency check
+    -- Fast-path idempotency check (matching installer_comfyui.ps1 Section 1)
     if test_path(python_bin) and test_path(main_py) and (test_path(shim_bat) or test_path(shim_sh)) then
         return
     end
 
-    -- Resolve uv executable
+    -- Resolve uv (Direct bin, PATH, or Mise shims/installs directory)
     local uv_exe = nil
     local clause_bin = os.getenv("CLAUSE_BIN_DIR") or ""
     local clause_home = os.getenv("CLAUSE_HOME") or ""
@@ -106,8 +107,8 @@ function PLUGIN:PostInstall(ctx)
                     if first_found and first_found ~= "" and test_path(first_found) then
                         uv_exe = first_found
                     else
-                        log("uv is not available in PATH. Ensure 'mise install uv' has completed.", "FATAL")
-                        error("[comfyui] Missing required tool: uv")
+                        write_clause_log("uv package manager missing. Ensure 'uv' is seeded via Mise.", "FATAL")
+                        error("[comfyui] Missing prerequisite: uv")
                     end
                 end
             end
@@ -115,19 +116,19 @@ function PLUGIN:PostInstall(ctx)
     end
 
     if not uv_exe then
-        log("uv package manager missing. Ensure 'uv' is seeded via Mise.", "FATAL")
+        write_clause_log("uv package manager missing. Ensure 'uv' is seeded via Mise.", "FATAL")
         error("[comfyui] Missing prerequisite: uv")
     end
 
-    log("Initializing Hermetic ComfyUI Studio Deployment (" .. version .. ")...", "INFO")
+    write_clause_log("Initializing Hermetic ComfyUI Studio Deployment (" .. version .. ")...", "INFO")
 
     local clause_temp_dir = os.getenv("CLAUSE_TEMP_DIR") or (is_win and (os.getenv("TEMP") or target_dir) or "/tmp")
     local clause_cache_dir = os.getenv("CLAUSE_CACHE_DIR") or join_path(target_dir, "cache")
     local uv_cache_dir = join_path(clause_cache_dir, "uv")
     local uv_python_install_dir = private_py_dir
 
-    -- Provision directory tree
-    local dirs_to_provision = { target_dir, shim_dir, private_py_dir, source_dir, clause_temp_dir, clause_cache_dir, uv_cache_dir }
+    -- Provision directories (matching Section 1)
+    local dirs_to_provision = { target_dir, shim_dir, private_py_dir, clause_temp_dir, clause_cache_dir, uv_cache_dir }
     for _, d in ipairs(dirs_to_provision) do
         if not test_path(d) then
             if is_win then
@@ -158,34 +159,29 @@ function PLUGIN:PostInstall(ctx)
     -- 2. STAGE COMFYUI REPOSITORY
     -- ==============================================================================
     if not test_path(main_py) then
-        log("Cloning ComfyUI source (" .. version .. ")...", "INFO")
+        write_clause_log("Cloning ComfyUI source (" .. version .. ")...", "INFO")
         local git_available = (is_win and os.execute("where git.exe >nul 2>&1") == 0) or (not is_win and os.execute("command -v git >/dev/null 2>&1") == 0)
 
         if git_available then
-            local branch_arg = (version ~= "latest" and version ~= "") and ("--branch " .. version) or ""
-            local clone_cmd = string.format("git clone --depth 1 %s https://github.com/Comfy-Org/ComfyUI.git \"%s\"", branch_arg, source_dir)
-            local clone_ok = pcall(run_cmd, clone_cmd)
-            if not clone_ok then
-                -- Fallback if specific tag wasn't found as branch
-                run_cmd(string.format("git clone --depth 1 https://github.com/Comfy-Org/ComfyUI.git \"%s\"", source_dir))
-            end
+            local tag_arg = (version ~= "latest" and version ~= "") and ("--branch " .. version) or ""
+            run_cmd(string.format("git clone --depth 1 %s https://github.com/Comfy-Org/ComfyUI.git \"%s\"", tag_arg, source_dir))
         else
-            local archive_url = (version ~= "latest" and version ~= "") 
+            -- Fallback archive download if git is not on path (matching Section 2)
+            local archive_url = (version ~= "latest" and version ~= "")
                 and string.format("https://github.com/Comfy-Org/ComfyUI/archive/refs/tags/%s.zip", version)
                 or "https://github.com/Comfy-Org/ComfyUI/archive/refs/heads/master.zip"
-            
+
             local zip_path = join_path(clause_temp_dir, "comfyui.zip")
             local extract_target = join_path(clause_temp_dir, "comfy_extract")
 
             if is_win then
-                run_cmd(string.format("powershell -NoProfile -Command \"Invoke-WebRequest -Uri '%s' -OutFile '%s'\"", archive_url, zip_path))
-                run_cmd(string.format("powershell -NoProfile -Command \"Expand-Archive -LiteralPath '%s' -DestinationPath '%s' -Force\"", zip_path, extract_target))
-                -- Move extracted nested directory to source_dir
-                run_cmd(string.format("powershell -NoProfile -Command \"Get-ChildItem -Path '%s' -Directory | Select-Object -First 1 | ForEach-Object { Copy-Item -Path ($_.FullName + '\\*') -Destination '%s' -Recurse -Force }\"", extract_target, source_dir))
+                run_cmd(string.format("powershell -NoProfile -ExecutionPolicy Bypass -Command \"Invoke-WebRequest -Uri '%s' -OutFile '%s'\"", archive_url, zip_path))
+                run_cmd(string.format("powershell -NoProfile -ExecutionPolicy Bypass -Command \"Expand-Archive -LiteralPath '%s' -DestinationPath '%s' -Force\"", zip_path, extract_target))
+                run_cmd(string.format("powershell -NoProfile -ExecutionPolicy Bypass -Command \"$inner = Get-ChildItem -Path '%s' -Directory | Select-Object -First 1; Move-Item -Path ($inner.FullName + '\\*') -Destination '%s' -Force\"", extract_target, source_dir))
             else
                 run_cmd(string.format("curl -sSL \"%s\" -o \"%s\"", archive_url, zip_path))
                 run_cmd(string.format("unzip -q -o \"%s\" -d \"%s\"", zip_path, extract_target))
-                run_cmd(string.format("cp -rf \"%s\"/*/* \"%s\"/", extract_target, source_dir))
+                run_cmd(string.format("mkdir -p \"%s\" && cp -rf \"%s\"/*/* \"%s\"/", source_dir, extract_target, source_dir))
             end
 
             if test_path(zip_path) then os.remove(zip_path) end
@@ -195,7 +191,7 @@ function PLUGIN:PostInstall(ctx)
     -- ==============================================================================
     -- 3. PROVISION ISOLATED PYTHON 3.12 VIA UV
     -- ==============================================================================
-    log("Provisioning standalone hermetic Python 3.12 into " .. private_py_dir .. "...", "DEBUG")
+    write_clause_log("Provisioning standalone hermetic Python 3.12 into " .. private_py_dir .. "...", "DEBUG")
     run_uv("python install --no-bin --no-registry 3.12")
 
     local base_python_out = capture_uv("python find 3.12")
@@ -236,7 +232,7 @@ function PLUGIN:PostInstall(ctx)
     end
 
     if not test_path(python_bin) then
-        log("Creating ComfyUI virtual environment at " .. venv_dir .. "...", "DEBUG")
+        write_clause_log("Creating ComfyUI virtual environment at " .. venv_dir .. "...", "DEBUG")
         run_uv(string.format("venv \"%s\" --python \"%s\"", venv_dir, base_python))
     end
 
@@ -255,7 +251,7 @@ function PLUGIN:PostInstall(ctx)
     local torch_packages = "\"torch\" \"torchvision\" \"torchaudio\""
 
     if is_mac then
-        log("Targeting Apple Silicon / macOS CPU-MPS runtime.", "INFO")
+        write_clause_log("Targeting Apple Silicon / macOS CPU-MPS runtime.", "INFO")
         torch_index_url = pytorch_base_url .. "/cpu"
     elseif is_win then
         -- ── Windows Hardware Probing ──
@@ -287,7 +283,7 @@ function PLUGIN:PostInstall(ctx)
             end
 
             torch_index_url = pytorch_base_url .. "/" .. cuda_tag
-            log("Detected NVIDIA GPU (CUDA " .. tostring(cuda_major) .. "." .. tostring(cuda_minor) .. ") -> Target Index: " .. torch_index_url, "INFO")
+            write_clause_log("Detected NVIDIA GPU (CUDA " .. tostring(cuda_major) .. "." .. tostring(cuda_minor) .. ") -> Target Index: " .. torch_index_url, "INFO")
         else
             -- Check AMD on Windows via WMI / PowerShell Base64
             local gpu_names = capture_cmd("wmic path win32_videocontroller get name 2>nul")
@@ -306,9 +302,9 @@ function PLUGIN:PostInstall(ctx)
             if amd_detected then
                 torch_index_url = "https://stable.repo.amd.com/rocm/whl-next/"
                 torch_packages = "\"torch[device-all]==2.13.0+rocm10.0.0\" \"torchvision[device-all]==0.28.0+rocm10.0.0\" \"torchaudio==2.11.0.2+rocm10.0.0\""
-                log("Detected AMD GPU on Windows -> Target Index: AMD ROCm 10.0 Multi-Arch", "INFO")
+                write_clause_log("Detected AMD GPU on Windows -> Target Index: AMD ROCm 10.0 Multi-Arch", "INFO")
             else
-                -- Check Intel Arc / XPU
+                -- Check Intel XPU
                 local intel_detected = false
                 for line in gpu_names:gmatch("[^\r\n]+") do
                     if line:match("Intel.*Arc") or line:match("Data Center GPU") then
@@ -319,9 +315,9 @@ function PLUGIN:PostInstall(ctx)
 
                 if intel_detected then
                     torch_index_url = pytorch_base_url .. "/xpu"
-                    log("Detected Intel Arc / XPU device -> Target Index: " .. torch_index_url, "INFO")
+                    write_clause_log("Detected Intel Arc / XPU device -> Target Index: " .. torch_index_url, "INFO")
                 else
-                    log("No GPU acceleration detected. Defaulting to CPU PyTorch.", "WARN")
+                    write_clause_log("No GPU acceleration detected. Defaulting to CPU PyTorch.", "WARN")
                 end
             end
         end
@@ -355,10 +351,10 @@ function PLUGIN:PostInstall(ctx)
             end
 
             torch_index_url = pytorch_base_url .. "/" .. cuda_tag
-            log("Detected NVIDIA GPU (CUDA " .. tostring(cuda_major) .. "." .. tostring(cuda_minor) .. ") -> Target Index: " .. torch_index_url, "INFO")
+            write_clause_log("Detected NVIDIA GPU (CUDA " .. tostring(cuda_major) .. "." .. tostring(cuda_minor) .. ") -> Target Index: " .. torch_index_url, "INFO")
         elseif test_path("/dev/kfd") or (os.execute("command -v rocminfo >/dev/null 2>&1") == 0) then
             torch_index_url = pytorch_base_url .. "/rocm7.2"
-            log("Detected AMD ROCm Acceleration -> Target Index: " .. torch_index_url, "INFO")
+            write_clause_log("Detected AMD ROCm Acceleration -> Target Index: " .. torch_index_url, "INFO")
         elseif test_path("/dev/dri") then
             local is_intel_arc = false
             if os.execute("command -v lspci >/dev/null 2>&1") == 0 then
@@ -374,19 +370,19 @@ function PLUGIN:PostInstall(ctx)
 
             if is_intel_arc then
                 torch_index_url = pytorch_base_url .. "/xpu"
-                log("Detected Intel Arc / XPU device -> Target Index: " .. torch_index_url, "INFO")
+                write_clause_log("Detected Intel Arc / XPU device -> Target Index: " .. torch_index_url, "INFO")
             else
-                log("No GPU acceleration detected. Defaulting to CPU PyTorch.", "WARN")
+                write_clause_log("No GPU acceleration detected. Defaulting to CPU PyTorch.", "WARN")
             end
         else
-            log("No GPU acceleration detected. Defaulting to CPU PyTorch.", "WARN")
+            write_clause_log("No GPU acceleration detected. Defaulting to CPU PyTorch.", "WARN")
         end
     end
 
     -- ==============================================================================
     -- 5. INSTALL DEPENDENCIES
     -- ==============================================================================
-    log("Installing PyTorch dependencies (" .. torch_index_url .. ")...", "INFO")
+    write_clause_log("Installing PyTorch dependencies (" .. torch_index_url .. ")...", "INFO")
     run_uv(string.format(
         "pip install --python \"%s\" --default-index \"%s\" %s",
         python_bin, torch_index_url, torch_packages
@@ -395,7 +391,7 @@ function PLUGIN:PostInstall(ctx)
     -- Install ComfyUI requirements.txt
     local req_file = join_path(source_dir, "requirements.txt")
     if test_path(req_file) then
-        log("Installing ComfyUI requirements...", "INFO")
+        write_clause_log("Installing ComfyUI requirements...", "INFO")
 
         local is_mac_intel = false
         if is_mac then
@@ -406,9 +402,9 @@ function PLUGIN:PostInstall(ctx)
         end
 
         if is_mac_intel then
-            log("Intel Mac (x86_64) detected: Filtering non-x86_64 wheels (e.g. comfy-angle)...", "WARN")
+            write_clause_log("Intel Mac (x86_64) detected: Filtering non-x86_64 wheels (e.g. comfy-angle)...", "WARN")
             local filtered_req = join_path(clause_temp_dir, "comfy_req_mac_intel_" .. tostring(os.time()) .. ".txt")
-            
+
             local f_in = io.open(req_file, "r")
             local f_out = io.open(filtered_req, "w")
             if f_in and f_out then
@@ -439,7 +435,8 @@ function PLUGIN:PostInstall(ctx)
         local cmd_shim = join_path(shim_dir, "comfyui.bat")
         local f_cmd = io.open(cmd_shim, "w")
         if f_cmd then
-            f_cmd:write("@echo off\r\nsetlocal\r\n")
+            f_cmd:write("@echo off\r\n")
+            f_cmd:write("setlocal\r\n")
             f_cmd:write("\"%~dp0..\\venv\\Scripts\\python.exe\" \"%~dp0..\\src\\main.py\" %*\r\n")
             f_cmd:write("exit /b %ERRORLEVEL%\r\n")
             f_cmd:close()
@@ -455,5 +452,5 @@ function PLUGIN:PostInstall(ctx)
         os.execute("chmod +x \"" .. sh_shim .. "\"")
     end
 
-    log("ComfyUI Studio engine successfully provisioned.", "INFO")
+    write_clause_log("ComfyUI Studio engine successfully provisioned.", "INFO")
 end
