@@ -305,41 +305,28 @@ if (Test-Path $MiseShims) {
     $env:PATH = "$MiseShims$PathSep$env:PATH"
 }
 
-# --- Plugin & Engine Health Check ---
+# --- Direct Filesystem Probe for Engine Directories ---
 $RequiredTools = @("comfyui", "lemonade", "code", "fastflowlm", "unsloth")
-$MissingTools = @()
+$MissingTools  = @()
 
-Write-ClauseLog "Verifying ClauseOS engines: $($RequiredTools -join ', ')..." -Level INFO
+$InstallsRel       = if ($IsOSWindows) { "AppData\Local\mise\installs" } else { ".local/share/mise/installs" }
+$MiseInstallsBase  = Join-Path $env:CLAUSE_HOME $InstallsRel
 
-# Query installed tools via JSON output from mise
-$MiseListRaw = & $MiseBin list --json 2>$null
-$MiseListJson = $null
-try {
-    $MiseListJson = $MiseListRaw | ConvertFrom-Json
-} catch {}
-
-$MiseInstallsBase = Join-Path $env:CLAUSE_HOME "AppData\Local\mise\installs"
+Write-ClauseLog "Probing tool installations at: $MiseInstallsBase" -Level DEBUG
 
 foreach ($Tool in $RequiredTools) {
-    $IsFound = $false
+    $ToolDir = Join-Path $MiseInstallsBase $Tool
+    $Installed = $false
 
-    # Check 1: Tool entry in mise list
-    if ($MiseListJson -and $MiseListJson.PSObject.Properties[$Tool]) {
-        $InstalledVersions = $MiseListJson.$Tool
-        if ($InstalledVersions -and $InstalledVersions.Count -gt 0) {
-            $IsFound = $true
+    if (Test-Path $ToolDir) {
+        # Check if there is at least one version subdirectory inside
+        $Versions = Get-ChildItem -Path $ToolDir -Directory -ErrorAction SilentlyContinue
+        if ($Versions -and $Versions.Count -gt 0) {
+            $Installed = $true
         }
     }
 
-    # Check 2: Physical directory fallback under installs folder
-    if (-not $IsFound) {
-        $ToolDir = Join-Path $MiseInstallsBase $Tool
-        if ((Test-Path $ToolDir) -and (Get-ChildItem -Path $ToolDir -Directory).Count -gt 0) {
-            $IsFound = $true
-        }
-    }
-
-    if (-not $IsFound) {
+    if (-not $Installed) {
         $MissingTools += $Tool
     }
 }
