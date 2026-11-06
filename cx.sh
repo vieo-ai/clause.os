@@ -201,7 +201,7 @@ if [ -x "$MISE_BIN" ] && [ -x "$NU_BIN" ]; then
 fi
 
 # ==============================================================================
-# STAGE 2: TOOLCHAIN INSTALLATION (MISE)
+# STAGE 2: TOOLCHAIN INSTALLATION & HEALTH VERIFICATION (MISE)
 # ==============================================================================
 write_clause_log "Finalizing ClauseOS toolchain installation..." "INFO"
 "$MISE_BIN" install --yes
@@ -212,6 +212,43 @@ if [ -d "$MISE_SHIMS" ]; then
         *:"${MISE_SHIMS}":*) ;;
         *) export PATH="${MISE_SHIMS}:${PATH}" ;;
     esac
+fi
+
+# --- Plugin & Engine Health Check ---
+REQUIRED_TOOLS=("comfyui" "lemonade" "code" "fastflowlm" "unsloth")
+MISSING_TOOLS=()
+MISE_INSTALLS_BASE="${CLAUSE_HOME}/.local/share/mise/installs"
+
+write_clause_log "Verifying ClauseOS engines: ${REQUIRED_TOOLS[*]}..." "INFO"
+
+for tool in "${REQUIRED_TOOLS[@]}"; do
+    is_found=0
+
+    # Check 1: Tool entry listed in mise ls
+    if "$MISE_BIN" ls --installed "$tool" 2>/dev/null | grep -q "$tool"; then
+        is_found=1
+    fi
+
+    # Check 2: Physical directory fallback under installs directory
+    if [ "$is_found" -eq 0 ] && [ -d "${MISE_INSTALLS_BASE}/${tool}" ]; then
+        if [ -n "$(find "${MISE_INSTALLS_BASE}/${tool}" -mindepth 1 -maxdepth 1 2>/dev/null)" ]; then
+            is_found=1
+        fi
+    fi
+
+    if [ "$is_found" -eq 0 ]; then
+        MISSING_TOOLS+=("$tool")
+    fi
+done
+
+if [ ${#MISSING_TOOLS[@]} -gt 0 ]; then
+    write_clause_log "Missing toolchain engines detected: ${MISSING_TOOLS[*]}. Re-executing mise install..." "WARN"
+    "$MISE_BIN" install --yes || {
+        write_clause_log "Mise retry installation failed" "FATAL"
+        exit 1
+    }
+else
+    write_clause_log "All engines verified successfully." "INFO"
 fi
 
 # ==============================================================================
