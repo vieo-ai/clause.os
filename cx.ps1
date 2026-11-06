@@ -287,7 +287,7 @@ if ((Test-Path $MiseBin) -and (Test-Path $NuBin)) {
 }
 
 # ==============================================================================
-# STAGE 2: TOOLCHAIN INSTALLATION (MISE)
+# STAGE 2: TOOLCHAIN INSTALLATION & HEALTH VERIFICATION (MISE)
 # ==============================================================================
 Write-ClauseLog "Finalizing ClauseOS toolchain installation..." -Level INFO
 & $MiseBin install --yes
@@ -296,13 +296,63 @@ if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
-# Ensure Mise shims/binaries are present in current session PATH for downstream recipes
+# Ensure Mise shims/binaries are present in current session PATH
 $MiseShimRel = if ($IsOSWindows) { "AppData\Local\mise\shims" } else { ".local/share/mise/shims" }
 $MiseShims   = Join-Path $env:CLAUSE_HOME $MiseShimRel
 
 if (Test-Path $MiseShims) {
     $PathSep = if ($IsOSWindows) { ";" } else { ":" }
     $env:PATH = "$MiseShims$PathSep$env:PATH"
+}
+
+# --- Plugin & Engine Health Check ---
+$RequiredTools = @("comfyui", "lemonade", "code", "fastflowlm", "unsloth")
+$MissingTools = @()
+
+Write-ClauseLog "Verifying ClauseOS engines: $($RequiredTools -join ', ')..." -Level INFO
+
+# Query installed tools via JSON output from mise
+$MiseListRaw = & $MiseBin list --json 2>$null
+$MiseListJson = $null
+try {
+    $MiseListJson = $MiseListRaw | ConvertFrom-Json
+} catch {}
+
+$MiseInstallsBase = Join-Path $env:CLAUSE_HOME "AppData\Local\mise\installs"
+
+foreach ($Tool in $RequiredTools) {
+    $IsFound = $false
+
+    # Check 1: Tool entry in mise list
+    if ($MiseListJson -and $MiseListJson.PSObject.Properties[$Tool]) {
+        $InstalledVersions = $MiseListJson.$Tool
+        if ($InstalledVersions -and $InstalledVersions.Count -gt 0) {
+            $IsFound = $true
+        }
+    }
+
+    # Check 2: Physical directory fallback under installs folder
+    if (-not $IsFound) {
+        $ToolDir = Join-Path $MiseInstallsBase $Tool
+        if ((Test-Path $ToolDir) -and (Get-ChildItem -Path $ToolDir -Directory).Count -gt 0) {
+            $IsFound = $true
+        }
+    }
+
+    if (-not $IsFound) {
+        $MissingTools += $Tool
+    }
+}
+
+if ($MissingTools.Count -gt 0) {
+    Write-ClauseLog "Missing toolchain engines detected: $($MissingTools -join ', '). Re-executing mise install..." -Level WARN
+    & $MiseBin install --yes
+    if ($LASTEXITCODE -ne 0) {
+        Write-ClauseLog "Mise retry installation failed with exit code $LASTEXITCODE" -Level FATAL
+        exit $LASTEXITCODE
+    }
+} else {
+    Write-ClauseLog "All engines verified successfully." -Level INFO
 }
 
 # ==============================================================================
