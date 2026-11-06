@@ -214,14 +214,14 @@ if [ -d "$MISE_SHIMS" ]; then
     esac
 fi
 
-# --- Direct Filesystem Probe for Engine Directories ---
-REQUIRED_TOOLS=("comfyui" "lemonade" "code" "fastflowlm" "unsloth")
-MISSING_TOOLS=()
+# --- Direct Filesystem Probe for Engine Directories (POSIX Compliant) ---
+REQUIRED_TOOLS="comfyui lemonade code fastflowlm unsloth"
+MISSING_TOOLS=""
 MISE_INSTALLS_BASE="${CLAUSE_HOME}/.local/share/mise/installs"
 
 write_clause_log "Probing tool installations at: ${MISE_INSTALLS_BASE}" "DEBUG"
 
-for tool in "${REQUIRED_TOOLS[@]}"; do
+for tool in $REQUIRED_TOOLS; do
     tool_dir="${MISE_INSTALLS_BASE}/${tool}"
     installed=0
 
@@ -233,12 +233,16 @@ for tool in "${REQUIRED_TOOLS[@]}"; do
     fi
 
     if [ "$installed" -eq 0 ]; then
-        MISSING_TOOLS+=("$tool")
+        if [ -z "$MISSING_TOOLS" ]; then
+            MISSING_TOOLS="$tool"
+        else
+            MISSING_TOOLS="${MISSING_TOOLS} $tool"
+        fi
     fi
 done
 
-if [ ${#MISSING_TOOLS[@]} -gt 0 ]; then
-    write_clause_log "Missing toolchain engines detected: ${MISSING_TOOLS[*]}. Re-executing mise install..." "WARN"
+if [ -n "$MISSING_TOOLS" ]; then
+    write_clause_log "Missing toolchain engines detected: ${MISSING_TOOLS}. Re-executing mise install..." "WARN"
     "$MISE_BIN" install --yes || {
         write_clause_log "Mise retry installation failed" "FATAL"
         exit 1
