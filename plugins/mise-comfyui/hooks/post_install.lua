@@ -75,44 +75,54 @@ function PLUGIN:PostInstall(ctx)
         return
     end
 
-    -- Resolve uv (Direct bin, PATH, or Mise shims/installs directory)
-    local uv_exe = nil
-    local clause_bin = os.getenv("CLAUSE_BIN_DIR") or ""
-    local clause_home = os.getenv("CLAUSE_HOME") or ""
-    local direct_uv = clause_bin ~= "" and join_path(clause_bin, "uv" .. exe_ext) or ""
+    -- Locate uv on the system (Direct bin, PATH, or Mise shims/installs)
+    local function probe_uv()
+        local clause_bin = os.getenv("CLAUSE_BIN_DIR") or ""
+        local direct_uv = clause_bin ~= "" and join_path(clause_bin, "uv" .. exe_ext) or ""
+        if direct_uv ~= "" and test_path(direct_uv) then
+            return direct_uv
+        end
 
-    if direct_uv ~= "" and test_path(direct_uv) then
-        uv_exe = direct_uv
-    else
         local cmd_probe = is_win and capture_cmd("where uv.exe 2>nul") or capture_cmd("command -v uv 2>/dev/null")
         local found_uv = cmd_probe:match("^[^\r\n]+")
         if found_uv and found_uv ~= "" and test_path(found_uv) then
-            uv_exe = found_uv
-        else
-            local mise_shim_rel = is_win and "AppData\\Local\\mise\\shims\\uv.exe" or ".local/share/mise/shims/uv"
-            local mise_shims = clause_home ~= "" and join_path(clause_home, mise_shim_rel) or ""
-            if mise_shims ~= "" and test_path(mise_shims) then
-                uv_exe = mise_shims
-            else
-                local user_home = os.getenv("HOME") or os.getenv("USERPROFILE") or ""
-                local alt_shims = join_path(user_home, mise_shim_rel)
-                if test_path(alt_shims) then
-                    uv_exe = alt_shims
-                else
-                    local mise_uv_base = is_win and join_path(user_home, "AppData\\Local\\mise\\installs\\uv")
-                                               or join_path(user_home, ".local/share/mise/installs/uv")
-                    local p_find = capture_cmd(is_win and ('dir /b /s "' .. mise_uv_base .. '\\uv.exe" 2>nul')
-                                                      or ('find "' .. mise_uv_base .. '" -type f -name uv 2>/dev/null'))
-                    local first_found = p_find:match("^[^\r\n]+")
-                    if first_found and first_found ~= "" and test_path(first_found) then
-                        uv_exe = first_found
-                    else
-                        write_clause_log("uv package manager missing. Ensure 'uv' is seeded via Mise.", "FATAL")
-                        error("[comfyui] Missing prerequisite: uv")
-                    end
-                end
-            end
+            return found_uv
         end
+
+        local clause_home = os.getenv("CLAUSE_HOME") or ""
+        local user_home = os.getenv("HOME") or os.getenv("USERPROFILE") or ""
+        local mise_shim_rel = is_win and "AppData\\Local\\mise\\shims\\uv.exe" or ".local/share/mise/shims/uv"
+
+        local mise_shims = clause_home ~= "" and join_path(clause_home, mise_shim_rel) or ""
+        if mise_shims ~= "" and test_path(mise_shims) then
+            return mise_shims
+        end
+
+        local alt_shims = join_path(user_home, mise_shim_rel)
+        if test_path(alt_shims) then
+            return alt_shims
+        end
+
+        local mise_uv_base = is_win and join_path(user_home, "AppData\\Local\\mise\\installs\\uv")
+                                   or join_path(user_home, ".local/share/mise/installs/uv")
+        local p_find = capture_cmd(is_win and ('dir /b /s "' .. mise_uv_base .. '\\uv.exe" 2>nul')
+                                          or ('find "' .. mise_uv_base .. '" -type f -name uv 2>/dev/null'))
+        local first_found = p_find:match("^[^\r\n]+")
+        if first_found and first_found ~= "" and test_path(first_found) then
+            return first_found
+        end
+
+        return nil
+    end
+
+    local uv_exe = probe_uv()
+
+    -- Cross-platform auto-bootstrap if uv is missing on the runner
+    if not uv_exe then
+        write_clause_log("uv not found on host; provisioning uv via Mise...", "INFO")
+        local bootstrap_cmd = is_win and "mise.exe use -g uv@latest" or "mise use -g uv@latest"
+        os.execute(bootstrap_cmd)
+        uv_exe = probe_uv()
     end
 
     if not uv_exe then
@@ -132,26 +142,26 @@ function PLUGIN:PostInstall(ctx)
     for _, d in ipairs(dirs_to_provision) do
         if not test_path(d) then
             if is_win then
-                os.execute("if not exist \"" .. d .. "\" mkdir \"" .. d .. "\" >nul 2>&1")
+                os.execute('if not exist "' .. d .. '" mkdir "' .. d .. '" >nul 2>&1')
             else
-                os.execute("mkdir -p \"" .. d .. "\"")
+                os.execute('mkdir -p "' .. d .. '"')
             end
         end
     end
 
     local function run_uv(subcommand)
         if is_win then
-            run_cmd(string.format("set \"UV_CACHE_DIR=%s\" && set \"UV_PYTHON_INSTALL_DIR=%s\" && \"%s\" %s", uv_cache_dir, uv_python_install_dir, uv_exe, subcommand))
+            run_cmd(string.format('set "UV_CACHE_DIR=%s" && set "UV_PYTHON_INSTALL_DIR=%s" && "%s" %s', uv_cache_dir, uv_python_install_dir, uv_exe, subcommand))
         else
-            run_cmd(string.format("UV_CACHE_DIR=\"%s\" UV_PYTHON_INSTALL_DIR=\"%s\" \"%s\" %s", uv_cache_dir, uv_python_install_dir, uv_exe, subcommand))
+            run_cmd(string.format('UV_CACHE_DIR="%s" UV_PYTHON_INSTALL_DIR="%s" "%s" %s', uv_cache_dir, uv_python_install_dir, uv_exe, subcommand))
         end
     end
 
     local function capture_uv(subcommand)
         if is_win then
-            return capture_cmd(string.format("set \"UV_CACHE_DIR=%s\" && set \"UV_PYTHON_INSTALL_DIR=%s\" && \"%s\" %s", uv_cache_dir, uv_python_install_dir, uv_exe, subcommand))
+            return capture_cmd(string.format('set "UV_CACHE_DIR=%s" && set "UV_PYTHON_INSTALL_DIR=%s" && "%s" %s', uv_cache_dir, uv_python_install_dir, uv_exe, subcommand))
         else
-            return capture_cmd(string.format("UV_CACHE_DIR=\"%s\" UV_PYTHON_INSTALL_DIR=\"%s\" \"%s\" %s", uv_cache_dir, uv_python_install_dir, uv_exe, subcommand))
+            return capture_cmd(string.format('UV_CACHE_DIR="%s" UV_PYTHON_INSTALL_DIR="%s" "%s" %s', uv_cache_dir, uv_python_install_dir, uv_exe, subcommand))
         end
     end
 
@@ -164,7 +174,7 @@ function PLUGIN:PostInstall(ctx)
 
         if git_available then
             local tag_arg = (version ~= "latest" and version ~= "") and ("--branch " .. version) or ""
-            run_cmd(string.format("git clone --depth 1 %s https://github.com/Comfy-Org/ComfyUI.git \"%s\"", tag_arg, source_dir))
+            run_cmd(string.format('git clone --depth 1 %s https://github.com/Comfy-Org/ComfyUI.git "%s"', tag_arg, source_dir))
         else
             -- Fallback archive download if git is not on path (matching Section 2)
             local archive_url = (version ~= "latest" and version ~= "")
@@ -175,13 +185,13 @@ function PLUGIN:PostInstall(ctx)
             local extract_target = join_path(clause_temp_dir, "comfy_extract")
 
             if is_win then
-                run_cmd(string.format("powershell -NoProfile -ExecutionPolicy Bypass -Command \"Invoke-WebRequest -Uri '%s' -OutFile '%s'\"", archive_url, zip_path))
-                run_cmd(string.format("powershell -NoProfile -ExecutionPolicy Bypass -Command \"Expand-Archive -LiteralPath '%s' -DestinationPath '%s' -Force\"", zip_path, extract_target))
-                run_cmd(string.format("powershell -NoProfile -ExecutionPolicy Bypass -Command \"$inner = Get-ChildItem -Path '%s' -Directory | Select-Object -First 1; Move-Item -Path ($inner.FullName + '\\*') -Destination '%s' -Force\"", extract_target, source_dir))
+                run_cmd(string.format('powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -Uri \'%s\' -OutFile \'%s\'"', archive_url, zip_path))
+                run_cmd(string.format('powershell -NoProfile -ExecutionPolicy Bypass -Command "Expand-Archive -LiteralPath \'%s\' -DestinationPath \'%s\' -Force"', zip_path, extract_target))
+                run_cmd(string.format('powershell -NoProfile -ExecutionPolicy Bypass -Command "$inner = Get-ChildItem -Path \'%s\' -Directory | Select-Object -First 1; Move-Item -Path ($inner.FullName + \'\\*\') -Destination \'%s\' -Force"', extract_target, source_dir))
             else
-                run_cmd(string.format("curl -sSL \"%s\" -o \"%s\"", archive_url, zip_path))
-                run_cmd(string.format("unzip -q -o \"%s\" -d \"%s\"", zip_path, extract_target))
-                run_cmd(string.format("mkdir -p \"%s\" && cp -rf \"%s\"/*/* \"%s\"/", source_dir, extract_target, source_dir))
+                run_cmd(string.format('curl -sSL "%s" -o "%s"', archive_url, zip_path))
+                run_cmd(string.format('unzip -q -o "%s" -d "%s"', zip_path, extract_target))
+                run_cmd(string.format('mkdir -p "%s" && cp -rf "%s"/*/* "%s"/ 2>/dev/null || cp -rf "%s"/* "%s"/ 2>/dev/null', source_dir, extract_target, source_dir, extract_target, source_dir))
             end
 
             if test_path(zip_path) then os.remove(zip_path) end
@@ -233,7 +243,7 @@ function PLUGIN:PostInstall(ctx)
 
     if not test_path(python_bin) then
         write_clause_log("Creating ComfyUI virtual environment at " .. venv_dir .. "...", "DEBUG")
-        run_uv(string.format("venv \"%s\" --python \"%s\"", venv_dir, base_python))
+        run_uv(string.format('venv "%s" --python "%s"', venv_dir, base_python))
     end
 
     local ownership_marker = join_path(venv_dir, ".comfyui-owned")
@@ -248,7 +258,7 @@ function PLUGIN:PostInstall(ctx)
     -- ==============================================================================
     local pytorch_base_url = "https://download.pytorch.org/whl"
     local torch_index_url = pytorch_base_url .. "/cpu"
-    local torch_packages = "\"torch\" \"torchvision\" \"torchaudio\""
+    local torch_packages = '"torch" "torchvision" "torchaudio"'
 
     if is_mac then
         write_clause_log("Targeting Apple Silicon / macOS CPU-MPS runtime.", "INFO")
@@ -301,10 +311,10 @@ function PLUGIN:PostInstall(ctx)
 
             if amd_detected then
                 torch_index_url = "https://stable.repo.amd.com/rocm/whl-next/"
-                torch_packages = "\"torch[device-all]==2.13.0+rocm10.0.0\" \"torchvision[device-all]==0.28.0+rocm10.0.0\" \"torchaudio==2.11.0.2+rocm10.0.0\""
+                torch_packages = '"torch[device-all]==2.13.0+rocm10.0.0" "torchvision[device-all]==0.28.0+rocm10.0.0" "torchaudio==2.11.0.2+rocm10.0.0"'
                 write_clause_log("Detected AMD GPU on Windows -> Target Index: AMD ROCm 10.0 Multi-Arch", "INFO")
             else
-                -- Check Intel XPU
+                -- Check Intel Arc / XPU
                 local intel_detected = false
                 for line in gpu_names:gmatch("[^\r\n]+") do
                     if line:match("Intel.*Arc") or line:match("Data Center GPU") then
@@ -384,7 +394,7 @@ function PLUGIN:PostInstall(ctx)
     -- ==============================================================================
     write_clause_log("Installing PyTorch dependencies (" .. torch_index_url .. ")...", "INFO")
     run_uv(string.format(
-        "pip install --python \"%s\" --default-index \"%s\" %s",
+        'pip install --python "%s" --default-index "%s" %s',
         python_bin, torch_index_url, torch_packages
     ))
 
@@ -418,13 +428,13 @@ function PLUGIN:PostInstall(ctx)
             end
 
             local req_ok, req_err = pcall(function()
-                run_uv(string.format("pip install --python \"%s\" -r \"%s\"", python_bin, filtered_req))
+                run_uv(string.format('pip install --python "%s" -r "%s"', python_bin, filtered_req))
             end)
 
             if test_path(filtered_req) then os.remove(filtered_req) end
             if not req_ok then error(req_err) end
         else
-            run_uv(string.format("pip install --python \"%s\" -r \"%s\"", python_bin, req_file))
+            run_uv(string.format('pip install --python "%s" -r "%s"', python_bin, req_file))
         end
     end
 
@@ -449,7 +459,7 @@ function PLUGIN:PostInstall(ctx)
             f_sh:write("exec \"$(dirname \"$0\")/../venv/bin/python\" \"$(dirname \"$0\")/../src/main.py\" \"$@\"\n")
             f_sh:close()
         end
-        os.execute("chmod +x \"" .. sh_shim .. "\"")
+        os.execute('chmod +x "' .. sh_shim .. '"')
     end
 
     write_clause_log("ComfyUI Studio engine successfully provisioned.", "INFO")
