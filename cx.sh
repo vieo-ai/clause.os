@@ -214,29 +214,25 @@ if [ -d "$MISE_SHIMS" ]; then
     esac
 fi
 
-# --- Plugin & Engine Health Check ---
+# --- Direct Filesystem Probe for Engine Directories ---
 REQUIRED_TOOLS=("comfyui" "lemonade" "code" "fastflowlm" "unsloth")
 MISSING_TOOLS=()
 MISE_INSTALLS_BASE="${CLAUSE_HOME}/.local/share/mise/installs"
 
-write_clause_log "Verifying ClauseOS engines: ${REQUIRED_TOOLS[*]}..." "INFO"
+write_clause_log "Probing tool installations at: ${MISE_INSTALLS_BASE}" "DEBUG"
 
 for tool in "${REQUIRED_TOOLS[@]}"; do
-    is_found=0
+    tool_dir="${MISE_INSTALLS_BASE}/${tool}"
+    installed=0
 
-    # Check 1: Tool entry listed in mise ls
-    if "$MISE_BIN" ls --installed "$tool" 2>/dev/null | grep -q "$tool"; then
-        is_found=1
-    fi
-
-    # Check 2: Physical directory fallback under installs directory
-    if [ "$is_found" -eq 0 ] && [ -d "${MISE_INSTALLS_BASE}/${tool}" ]; then
-        if [ -n "$(find "${MISE_INSTALLS_BASE}/${tool}" -mindepth 1 -maxdepth 1 2>/dev/null)" ]; then
-            is_found=1
+    if [ -d "$tool_dir" ]; then
+        # Check if directory contains at least one version folder/file
+        if [ -n "$(ls -A "$tool_dir" 2>/dev/null)" ]; then
+            installed=1
         fi
     fi
 
-    if [ "$is_found" -eq 0 ]; then
+    if [ "$installed" -eq 0 ]; then
         MISSING_TOOLS+=("$tool")
     fi
 done
