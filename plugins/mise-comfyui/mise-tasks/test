@@ -5,6 +5,9 @@ echo "[test] Linking local comfyui plugin..."
 mise plugins link --force comfyui .
 mise cache clear
 
+echo "[test] Ensuring prerequisite uv is installed..."
+mise use -g uv@latest || mise install uv@latest
+
 echo "[test] Installing comfyui@latest..."
 mise install comfyui@latest
 
