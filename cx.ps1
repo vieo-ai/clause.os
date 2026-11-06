@@ -242,16 +242,28 @@ if (-not (Test-Path $NuBin)) {
     Set-PosixExecutable -FilePath $NuBin
 }
 
-# Cleanup transient downloads
+# ==============================================================================
+# CLEANUP TRANSIENT DOWNLOADS & EXTRACTIONS
+# ==============================================================================
+# 1. Clean contents inside TmpDir without removing the folder itself
 if (Test-Path $TmpDir) {
     Write-ClauseLog "Cleaning up temporary extraction folder: $TmpDir" -Level DEBUG
-    Remove-Item -Path $TmpDir -Recurse -Force -ErrorAction SilentlyContinue
+    Get-ChildItem -Path $TmpDir -Force -ErrorAction SilentlyContinue | 
+        Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+} else {
+    New-Item -ItemType Directory -Force -Path $TmpDir | Out-Null
 }
 
-if (Test-Path $env:CLAUSE_TEMP_DIR) {
-    Remove-Item -Path $env:CLAUSE_TEMP_DIR -Recurse -Force -ErrorAction SilentlyContinue
+# 2. Clean contents inside CLAUSE_TEMP_DIR without removing the root directory
+if ($env:CLAUSE_TEMP_DIR -and (Test-Path $env:CLAUSE_TEMP_DIR)) {
+    Get-ChildItem -Path $env:CLAUSE_TEMP_DIR -Force -ErrorAction SilentlyContinue | 
+        Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
 }
-New-Item -ItemType Directory -Force -Path $env:CLAUSE_TEMP_DIR | Out-Null
+
+# 3. Guarantee that TEMP and TMP exist on disk for all child cmd.exe / git processes
+@($env:CLAUSE_TEMP_DIR, $env:TEMP, $env:TMP) | Where-Object { $_ -and -not (Test-Path $_) } | ForEach-Object {
+    New-Item -ItemType Directory -Force -Path $_ | Out-Null
+}
 
 # Windows Profile Attribute Protection
 if ($IsOSWindows) {
