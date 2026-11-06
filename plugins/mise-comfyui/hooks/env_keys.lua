@@ -1,81 +1,31 @@
---- Configures environment variables for the installed tool
+--- Exports environment variables and path adjustments for Mise
 --- Documentation: https://mise.jdx.dev/tool-plugin-development.html#envkeys-hook
---- @param ctx {path: string, runtimeVersion: string, sdkInfo: table} Context
---- @return table[] List of environment variable definitions
+--- @param ctx {path: string, version: string} Context
 function PLUGIN:EnvKeys(ctx)
-    local mainPath = ctx.path
-    -- local sdkInfo = ctx.sdkInfo[PLUGIN.name]
-    -- local version = sdkInfo.version
+    local target_dir = ctx.path
+    local os_type = RUNTIME.osType:lower()
+    local is_win = (os_type == "windows")
 
-    -- Basic configuration (minimum required for most tools)
-    -- This adds the bin directory to PATH so the tool can be executed
-    return {
-        {
-            key = "PATH",
-            value = mainPath .. "/bin",
-        },
-    }
-
-    -- Example: Tool-specific environment variables
-    --[[
-    return {
-        {
-            key = "<TOOL>_HOME",
-            value = mainPath,
-        },
-        {
-            key = "PATH",
-            value = mainPath .. "/bin",
-        },
-        -- Multiple PATH entries are automatically merged
-        {
-            key = "PATH",
-            value = mainPath .. "/scripts",
-        },
-    }
-    --]]
-
-    -- Example: Library paths for compiled tools
-    --[[
-    return {
-        {
-            key = "PATH",
-            value = mainPath .. "/bin",
-        },
-        {
-            key = "LD_LIBRARY_PATH",
-            value = mainPath .. "/lib",
-        },
-        {
-            key = "PKG_CONFIG_PATH",
-            value = mainPath .. "/lib/pkgconfig",
-        },
-    }
-    --]]
-
-    -- Example: Platform-specific configuration
-    --[[
-    local env_vars = {
-        {
-            key = "PATH",
-            value = mainPath .. "/bin",
-        },
-    }
-
-    -- RUNTIME object is provided by mise/vfox
-    if RUNTIME.osType == "Darwin" then
-        table.insert(env_vars, {
-            key = "DYLD_LIBRARY_PATH",
-            value = mainPath .. "/lib",
-        })
-    elseif RUNTIME.osType == "Linux" then
-        table.insert(env_vars, {
-            key = "LD_LIBRARY_PATH",
-            value = mainPath .. "/lib",
-        })
+    local function join_path(a, b)
+        local sep = is_win and "\\" or "/"
+        local clean_a = a:gsub("[\\/]+$", "")
+        local clean_b = b:gsub("^[\\/]+", "")
+        return clean_a .. sep .. clean_b
     end
-    -- Windows doesn't use these library path variables
 
-    return env_vars
-    --]]
+    local bin_dir = join_path(target_dir, "bin")
+    local src_dir = join_path(target_dir, "src")
+
+    return {
+        -- Add ComfyUI trampolines directly to PATH
+        {
+            key = "PATH",
+            value = bin_dir
+        },
+        -- Export root for integrations and custom node management
+        {
+            key = "COMFYUI_HOME",
+            value = src_dir
+        }
+    }
 end
