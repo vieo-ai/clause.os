@@ -1,0 +1,28 @@
+# ==============================================================================
+# ClauseOS - BLANK HERMETIC STARTER TEMPLATE
+# ==============================================================================
+
+[env]
+CLAUSE_PROJECT_ROOT       = "{{config_root}}"
+CLAUSE_HOME               = "{{config_root}}/.home"
+HOME                      = "{{config_root}}/.home"
+USERPROFILE               = "{{config_root}}/.home"
+GIT_CONFIG_GLOBAL         = "{{config_root}}/.home/.gitconfig"
+NU_CONFIG_DIR             = "{{config_root}}/scripts/cli/nu/config"
+
+_.path = [
+    "{{ env.CLAUSE_BIN_DIR }}",
+]
+
+[plugins]
+code            = "https://github.com/vieo-ai/mise-vscode.git"
+
+[tools]
+apm        = "v0.33.0"
+code       = "1.144.1"
+
+[settings]
+auto_install = false
+experimental = false
+legacy_version_file = false
+github_attestations = false
