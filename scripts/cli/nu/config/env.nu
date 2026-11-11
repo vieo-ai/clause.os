@@ -1,59 +1,80 @@
 # scripts/cli/nu/config/env.nu - ClauseOS Canonical Nushell Environment
 
-# 1. Inherit or Resolve Project Root
+# ==============================================================================
+# 1. RESOLVE PROJECT ROOT & LOAD CANONICAL ENVIRONMENT FROM .ENV (SSOT)
+# ==============================================================================
 let project_root = if ("CLAUSE_PROJECT_ROOT" in $env) {
     $env.CLAUSE_PROJECT_ROOT
 } else {
     $env.FILE_PWD | path join ".." ".." ".." ".." | path expand
 }
 
-let clause_home = ($project_root | path join ".home")
+# Ingest root .env file as canonical configuration data source
+let dot_env_file = ($project_root | path join ".env")
+if ($dot_env_file | path exists) {
+    open $dot_env_file
+    | lines
+    | parse "{key}={value}"
+    | where { |row| not ($row.key | str starts-with "#") and ($row.key | str trim | is-not-empty) }
+    | each { |row|
+        let clean_val = ($row.value | str trim | str trim --char '"' | str trim --char "'")
+        load-env { ($row.key | str trim): $clean_val }
+    }
+}
+
 let is_windows  = (($nu.os-info.name | str lowercase) == "windows")
+let clause_home = ($project_root | path join ($env.CLAUSE_HOME? | default ".home"))
 
 $env.CLAUSE_PROJECT_ROOT = $project_root
 $env.CLAUSE_HOME         = $clause_home
 $env.HOME                = $clause_home
 $env.USERPROFILE         = $clause_home
 
-# 2. Platform Directory Anchors
+# ==============================================================================
+# 2. PLATFORM DIRECTORY ANCHORS
+# ==============================================================================
 if $is_windows {
-    let win_local   = ($clause_home | path join "AppData" "Local")
-    let win_roaming = ($clause_home | path join "AppData" "Roaming")
+    let win_local   = ($project_root | path join $env.WIN_LOCALAPPDATA)
+    let win_roaming = ($project_root | path join $env.WIN_APPDATA)
 
     $env.LOCALAPPDATA = $win_local
     $env.APPDATA      = $win_roaming
 
-    $env.CLAUSE_BIN_DIR   = ($win_local | path join "Programs" "bin")
-    $env.CLAUSE_APPS_DIR  = ($win_local | path join "Programs" "apps")
-    $env.CLAUSE_CACHE_DIR = ($win_local | path join "cache")
-    $env.CLAUSE_TEMP_DIR  = ($win_local | path join "Temp")
-    $env.CLAUSE_LOGS_DIR  = ($win_local | path join "Programs" "logs")
+    $env.CLAUSE_BIN_DIR   = ($project_root | path join $env.WIN_CLAUSE_BIN_DIR)
+    $env.CLAUSE_APPS_DIR  = ($project_root | path join $env.WIN_CLAUSE_APPS_DIR)
+    $env.CLAUSE_CACHE_DIR = ($project_root | path join $env.WIN_CLAUSE_CACHE_DIR)
+    $env.CLAUSE_TEMP_DIR  = ($project_root | path join $env.WIN_CLAUSE_TEMP_DIR)
+    $env.CLAUSE_LOGS_DIR  = ($project_root | path join $env.WIN_CLAUSE_LOGS_DIR)
 
     $env.MISE_DATA_DIR   = ($win_local | path join "mise")
     $env.MISE_CONFIG_DIR = ($win_roaming | path join "mise")
     $env.MISE_STATE_DIR  = ($win_local | path join "mise" "state")
     $env.MISE_CACHE_DIR  = ($win_local | path join "mise" "cache")
+    $env.MISE_LOG_FILE   = ($win_local | path join "mise" "logs" "mise.log")
     $env.GH_CONFIG_DIR   = ($win_roaming | path join "GitHub CLI")
 } else {
-    $env.XDG_CONFIG_HOME = ($clause_home | path join ".config")
-    $env.XDG_DATA_HOME   = ($clause_home | path join ".local" "share")
-    $env.XDG_STATE_HOME  = ($clause_home | path join ".local" "state")
-    $env.XDG_CACHE_HOME  = ($clause_home | path join ".cache")
+    $env.XDG_CONFIG_HOME = ($project_root | path join $env.XDG_CONFIG_HOME)
+    $env.XDG_DATA_HOME   = ($project_root | path join $env.XDG_DATA_HOME)
+    $env.XDG_STATE_HOME  = ($project_root | path join $env.XDG_STATE_HOME)
+    $env.XDG_CACHE_HOME  = ($project_root | path join $env.XDG_CACHE_HOME)
 
-    $env.CLAUSE_BIN_DIR   = ($clause_home | path join ".local" "bin")
-    $env.CLAUSE_APPS_DIR  = ($clause_home | path join ".local" "apps")
+    $env.CLAUSE_BIN_DIR   = ($project_root | path join $env.POSIX_CLAUSE_BIN_DIR)
+    $env.CLAUSE_APPS_DIR  = ($project_root | path join $env.POSIX_CLAUSE_APPS_DIR)
     $env.CLAUSE_CACHE_DIR = $env.XDG_CACHE_HOME
-    $env.CLAUSE_TEMP_DIR  = ($clause_home | path join ".cache" "tmp_bootstrap")
-    $env.CLAUSE_LOGS_DIR  = ($clause_home | path join ".local" "logs")
+    $env.CLAUSE_TEMP_DIR  = ($env.XDG_CACHE_HOME | path join "tmp_bootstrap")
+    $env.CLAUSE_LOGS_DIR  = ($project_root | path join $env.POSIX_CLAUSE_LOGS_DIR)
 
     $env.MISE_DATA_DIR   = ($env.XDG_DATA_HOME | path join "mise")
     $env.MISE_CONFIG_DIR = ($env.XDG_CONFIG_HOME | path join "mise")
     $env.MISE_STATE_DIR  = ($env.XDG_STATE_HOME | path join "mise")
     $env.MISE_CACHE_DIR  = ($env.XDG_CACHE_HOME | path join "mise")
+    $env.MISE_LOG_FILE   = ($env.XDG_STATE_HOME | path join "mise" "logs" "mise.log")
     $env.GH_CONFIG_DIR   = ($env.XDG_CONFIG_HOME | path join "gh")
 }
 
-# 3. Directory Invariants & Hermetic SSH Containment
+# ==============================================================================
+# 3. DIRECTORY INVARIANTS & HERMETIC SSH CONTAINMENT
+# ==============================================================================
 let ssh_dir = ($clause_home | path join ".ssh")
 
 for dir in [$env.CLAUSE_CACHE_DIR $env.CLAUSE_BIN_DIR $ssh_dir] {
@@ -87,12 +108,16 @@ def --env ssh [...args: string] {
     }
 }
 
-# 4. Identity & Config Routing
-$env.GIT_CONFIG_GLOBAL = ($clause_home | path join ".gitconfig")
-$env.NU_CONFIG_DIR     = ($project_root | path join "scripts" "cli" "nu" "config")
-$env.PULUMI_HOME       = ($clause_home | path join ".pulumi")
+# ==============================================================================
+# 4. IDENTITY & CONFIG ROUTING
+# ==============================================================================
+$env.GIT_CONFIG_GLOBAL = ($project_root | path join $env.GIT_CONFIG_GLOBAL)
+$env.NU_CONFIG_DIR     = ($project_root | path join $env.NU_CONFIG_DIR)
+$env.PULUMI_HOME       = ($project_root | path join $env.PULUMI_HOME)
 
-# 5. PATH Injection (Stage 0 Binaries Only)
+# ==============================================================================
+# 5. PATH INJECTION (STAGE 0 BINARIES ONLY)
+# ==============================================================================
 let bin_dir = ($env.CLAUSE_BIN_DIR | path expand)
 
 let raw_paths = if ($env.PATH | describe | str starts-with "list") {
@@ -117,6 +142,10 @@ if not ($current_paths | any { |p|
     $env.PATH = $current_paths
 }
 
-# 6. Dynamic Mise Activation Overlay Generation
+# ==============================================================================
+# 6. DYNAMIC MISE ACTIVATION OVERLAY GENERATION
+# ==============================================================================
 let mise_path = ($env.NU_CONFIG_DIR | path join "mise.nu")
-^mise activate nu | save $mise_path --force
+if (which mise | is-not-empty) {
+    ^mise activate nu | save $mise_path --force
+}
