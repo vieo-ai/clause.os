@@ -34,6 +34,22 @@ $env.USERPROFILE         = $clause_home
 # 2. PLATFORM DIRECTORY ANCHORS
 # ==============================================================================
 if $is_windows {
+    # --------------------------------------------------------------------------
+    # Scrub all POSIX-specific keys from the Nushell environment on Windows.
+    # Passing -i ignores missing keys without throwing errors.
+    # --------------------------------------------------------------------------
+    hide-env -i (
+        [
+            "XDG_CONFIG_HOME"
+            "XDG_DATA_HOME"
+            "XDG_STATE_HOME"
+            "XDG_CACHE_HOME"
+            "POSIX_CLAUSE_BIN_DIR"
+            "POSIX_CLAUSE_APPS_DIR"
+            "POSIX_CLAUSE_LOGS_DIR"
+        ]
+    )
+
     let win_local   = ($project_root | path join $env.WIN_LOCALAPPDATA)
     let win_roaming = ($project_root | path join $env.WIN_APPDATA)
 
@@ -53,6 +69,21 @@ if $is_windows {
     $env.MISE_LOG_FILE   = ($win_local | path join "mise" "logs" "mise.log")
     $env.GH_CONFIG_DIR   = ($win_roaming | path join "GitHub CLI")
 } else {
+    # --------------------------------------------------------------------------
+    # Scrub Windows-specific keys from the Nushell environment on POSIX.
+    # --------------------------------------------------------------------------
+    hide-env -i (
+        [
+            "WIN_LOCALAPPDATA"
+            "WIN_APPDATA"
+            "WIN_CLAUSE_BIN_DIR"
+            "WIN_CLAUSE_APPS_DIR"
+            "WIN_CLAUSE_LOGS_DIR"
+            "WIN_CLAUSE_TEMP_DIR"
+            "WIN_CLAUSE_CACHE_DIR"
+        ]
+    )
+    
     $env.XDG_CONFIG_HOME = ($project_root | path join $env.XDG_CONFIG_HOME)
     $env.XDG_DATA_HOME   = ($project_root | path join $env.XDG_DATA_HOME)
     $env.XDG_STATE_HOME  = ($project_root | path join $env.XDG_STATE_HOME)
