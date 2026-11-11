@@ -4,20 +4,20 @@
 
 [env]
 # 1. Tell mise to read the canonical .env file as the single source of truth
-_.file = ".env"
+# _.file = ".env"
 
 # 2. Map system logs and dynamic mise variables
-MISE_LOG_FILE = "{{config_root}}/.home/mise.log"
-MISE_LOG_FILE_LEVEL = "{{env.MISE_LOG_FILE_LEVEL}}"
-MISE_LOG_LEVEL = "{{env.USER_LOG_LEVEL}}"
+# MISE_LOG_FILE = "{{config_root}}/.home/mise.log"
+# MISE_LOG_FILE_LEVEL = "{{env.MISE_LOG_FILE_LEVEL}}"
+# MISE_LOG_LEVEL = "{{env.USER_LOG_LEVEL}}"
 
 # 3. Define the root directory for the project and home directories
-CLAUSE_PROJECT_ROOT = "{{config_root}}"
-CLAUSE_HOME = "{{config_root}}/{{env.CLAUSE_HOME}}"
-HOME = "{{config_root}}/{{env.HOME}}"
-USERPROFILE = "{{config_root}}/{{env.USERPROFILE}}"
-GIT_CONFIG_GLOBAL = "{{config_root}}/{{env.GIT_CONFIG_GLOBAL}}"
-NU_CONFIG_DIR = "{{config_root}}/{{env.NU_CONFIG_DIR}}"
+# CLAUSE_PROJECT_ROOT = "{{config_root}}"
+# CLAUSE_HOME = "{{config_root}}/{{env.CLAUSE_HOME}}"
+# HOME = "{{config_root}}/{{env.HOME}}"
+# USERPROFILE = "{{config_root}}/{{env.USERPROFILE}}"
+# GIT_CONFIG_GLOBAL = "{{config_root}}/{{env.GIT_CONFIG_GLOBAL}}"
+# NU_CONFIG_DIR = "{{config_root}}/{{env.NU_CONFIG_DIR}}"
 
 # 4. Global bin prepend path
 _.path = ["{{ env.CLAUSE_BIN_DIR }}"]
