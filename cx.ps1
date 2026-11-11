@@ -41,6 +41,19 @@ $IsOSMac     = $IsMacOS -or ($PSVersionTable.OS -like "*Darwin*")
 $IsOSLinux   = -not $IsOSWindows -and -not $IsOSMac
 
 if ($IsOSWindows) {
+    # 1. Clean up POSIX XDG variables so Windows runtimes (like Nushell) don't trip
+    @(
+        'XDG_CONFIG_HOME',
+        'XDG_DATA_HOME',
+        'XDG_STATE_HOME',
+        'XDG_CACHE_HOME',
+        'POSIX_CLAUSE_BIN_DIR',
+        'POSIX_CLAUSE_APPS_DIR',
+        'POSIX_CLAUSE_LOGS_DIR'
+    ) | ForEach-Object {
+        [Environment]::SetEnvironmentVariable($_, $null, 'Process')
+    }
+    
     # Windows Native NT Layout inside .home
     $WinLocal   = Join-Path $ProjectRoot $env:WIN_LOCALAPPDATA
     $WinRoaming = Join-Path $ProjectRoot $env:WIN_APPDATA
