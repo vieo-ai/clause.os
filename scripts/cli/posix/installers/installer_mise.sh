@@ -37,8 +37,9 @@ fi
 LOCAL_BIN="${CLAUSE_BIN_DIR:-${PROJECT_ROOT}/.home/.local/bin}"
 MISE_BIN="${LOCAL_BIN}/mise"
 
+# Fast-path check: use return instead of exit
 if [ -x "$MISE_BIN" ]; then
-    exit 0
+    return 0 2>/dev/null || exit 0
 fi
 
 CLEAN_MISE_VER="$(echo "$VERSION" | sed 's/^v//')"
