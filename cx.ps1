@@ -296,82 +296,34 @@ try {
 }
 
 # ==============================================================================
-# TWO-BINARY SEEDING (MISE & NU)
+# MODULAR RECIPE DISCOVERY & EXECUTION (STAGE 0 & STAGE 1)
 # ==============================================================================
-$ExeExt  = if ($IsOSWindows) { ".exe" } else { "" }
-$MiseBin = Join-Path $LocalBin "mise$ExeExt"
-$NuBin   = Join-Path $LocalBin "nu$ExeExt"
+$InstallerDir = Join-Path $ProjectRoot $env:WIN_INSTALLERS_DIR
 
-# 1. Mise Seeding
-if (-not (Test-Path $MiseBin)) {
-    $MiseVersion = Get-TomlValue -Content $TomlContent -Key "mise"
-    if (-not $MiseVersion) {
-        Write-ClauseLog "Missing required version definition for 'mise' in .clause.toml" -Level FATAL
-        throw "[ClauseOS] Error: Missing required version definition for 'mise' in .clause.toml"
-    }
+if (Test-Path $InstallerDir) {
+    # Scan for recipes matching: installer_<key>.ps1 or <order>_installer_<key>.ps1
+    $Recipes = Get-ChildItem -Path $InstallerDir -Filter "installer_*.ps1" | Sort-Object Name
 
-    $CleanMiseVer = $MiseVersion.TrimStart('v')
-    Write-ClauseLog "Seeding Mise (v$CleanMiseVer) into $LocalBin..." -Level INFO
+    foreach ($Recipe in $Recipes) {
+        # Extract the TOML key by stripping 'installer_' and '.ps1'
+        # e.g., 'installer_fastflowlm.ps1' -> 'fastflowlm'
+        # e.g., '01_installer_mise.ps1'   -> 'mise'
+        $ToolKey = $Recipe.BaseName -replace '^(\d+_)?installer_', ''
 
-    if ($IsOSWindows) {
-        $MiseAsset    = "mise-v${CleanMiseVer}-windows-x64.zip"
-        $MiseUrl      = "https://github.com/jdx/mise/releases/download/v${CleanMiseVer}/${MiseAsset}"
-        $MiseDownload = Join-Path $TmpDir $MiseAsset
-        $MiseExtract  = Join-Path $TmpDir "mise_extracted"
-
-        Get-File -Url $MiseUrl -OutFile $MiseDownload
-        Expand-HermeticArchive -ArchivePath $MiseDownload -DestinationPath $MiseExtract
-
-        # Move all unpacked binaries (mise.exe, mise-shim.exe, etc.) into $LocalBin
-        Get-ChildItem -Path $MiseExtract -Filter "*.exe" -Recurse | ForEach-Object {
-            Move-Item -Path $_.FullName -Destination $LocalBin -Force
-        }
-    } else {
-        $MiseUrl = if ($IsOSMac) {
-            "https://github.com/jdx/mise/releases/download/v${CleanMiseVer}/mise-v${CleanMiseVer}-macos-x64"
-        } else {
-            "https://github.com/jdx/mise/releases/download/v${CleanMiseVer}/mise-v${CleanMiseVer}-linux-x64"
+        # Read the pinned version from .clause.toml
+        $Version = Get-TomlValue -Content $TomlContent -Key $ToolKey
+        if (-not $Version) {
+            Write-ClauseLog "Missing required version definition for '$ToolKey' in .clause.toml" -Level FATAL
+            throw "[ClauseOS] Error: Missing required version definition for '$ToolKey' in .clause.toml"
         }
 
-        Get-File -Url $MiseUrl -OutFile $MiseBin
-        Set-PosixExecutable -FilePath $MiseBin
+        Write-ClauseLog "Executing recipe '$($Recipe.Name)' for '$ToolKey' ($Version)..." -Level DEBUG
+
+        # Execute recipe passing Version and ProjectRoot
+        & $Recipe.FullName -Version $Version -ProjectRoot $ProjectRoot
     }
-}
-
-# 2. Nushell Seeding
-if (-not (Test-Path $NuBin)) {
-    $NuVersion = Get-TomlValue -Content $TomlContent -Key "nu"
-    if (-not $NuVersion) {
-        Write-ClauseLog "Missing required version definition for 'nu' in .clause.toml" -Level FATAL
-        throw "[ClauseOS] Error: Missing required version definition for 'nu' in .clause.toml"
-    }
-
-    $CleanNuVer = $NuVersion.TrimStart('v')
-    Write-ClauseLog "Seeding Nushell (v$CleanNuVer) into $LocalBin..." -Level INFO
-
-    $NuAsset = if ($IsOSWindows) {
-        "nu-${CleanNuVer}-x86_64-pc-windows-msvc.zip"
-    } elseif ($IsOSMac) {
-        "nu-${CleanNuVer}-x86_64-apple-darwin.tar.gz"
-    } else {
-        "nu-${CleanNuVer}-x86_64-unknown-linux-musl.tar.gz"
-    }
-
-    $NuUrl      = "https://github.com/nushell/nushell/releases/download/${CleanNuVer}/${NuAsset}"
-    $NuDownload = Join-Path $TmpDir $NuAsset
-    $NuExtract  = Join-Path $TmpDir "nu_extracted"
-
-    Get-File -Url $NuUrl -OutFile $NuDownload
-    Expand-HermeticArchive -ArchivePath $NuDownload -DestinationPath $NuExtract
-
-    $ExtractedNu = Get-ChildItem -Path $NuExtract -Filter "nu$ExeExt" -Recurse | Select-Object -First 1
-    if (-not $ExtractedNu) {
-        Write-ClauseLog "Failed to locate extracted nu binary in $NuExtract" -Level FATAL
-        throw "[ClauseOS] Error: Could not find nu executable in extracted archive"
-    }
-
-    Move-Item -Path $ExtractedNu.FullName -Destination $NuBin -Force
-    Set-PosixExecutable -FilePath $NuBin
+} else {
+    Write-ClauseLog "Installer directory not found at: $InstallerDir" -Level WARN
 }
 
 # ==============================================================================
@@ -408,6 +360,9 @@ if ($IsOSWindows) {
 # GENERATE NUSHELL MISE ACTIVATION OVERLAY
 # ==============================================================================
 $MiseNu = Join-Path $NuConfigDir "mise.nu"
+$ExeExt  = if ($IsOSWindows) { ".exe" } else { "" }
+$MiseBin = Join-Path $LocalBin "mise$ExeExt"
+$NuBin   = Join-Path $LocalBin "nu$ExeExt"
 
 if ((Test-Path $MiseBin) -and (Test-Path $NuBin)) {
     Write-ClauseLog "Syncing Mise Nushell overlay..." -Level INFO
