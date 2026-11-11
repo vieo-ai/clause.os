@@ -67,6 +67,22 @@ if ($IsOSWindows) {
     $env:CLAUSE_TEMP_DIR  = Join-Path $ProjectRoot $env:WIN_CLAUSE_TEMP_DIR
     $env:CLAUSE_LOGS_DIR  = Join-Path $ProjectRoot $env:WIN_CLAUSE_LOGS_DIR
 
+    # --------------------------------------------------------------------------
+    # HERMETIC NT HOME & SCRATCH ISOLATION (From .env definitions)
+    # --------------------------------------------------------------------------
+    $env:TEMP = Join-Path $ProjectRoot $env:WIN_TEMP
+    $env:TMP  = Join-Path $ProjectRoot $env:WIN_TMP
+
+    # Resolve HOMEDRIVE & HOMEPATH (use .env override if provided, else compute)
+    if ($env:WIN_HOMEDRIVE -and $env:WIN_HOMEPATH) {
+        $env:HOMEDRIVE = $env:WIN_HOMEDRIVE
+        $env:HOMEPATH  = $env:WIN_HOMEPATH
+    } else {
+        $HomePathSplit = [System.IO.Path]::GetPathRoot($ClauseHome)
+        $env:HOMEDRIVE = $HomePathSplit.TrimEnd('\')
+        $env:HOMEPATH  = $ClauseHome.Substring($HomePathSplit.Length - 1)
+    }
+
     # Mise paths on Windows
     $env:MISE_DATA_DIR   = Join-Path $WinLocal "mise"
     $env:MISE_CONFIG_DIR = Join-Path $WinRoaming "mise"
@@ -80,6 +96,22 @@ if ($IsOSWindows) {
         if (-not (Test-Path $_)) { New-Item -ItemType Directory -Force -Path $_ | Out-Null }
     }
 } else {
+    @(
+        'WIN_LOCALAPPDATA',
+        'WIN_APPDATA',
+        'WIN_CLAUSE_BIN_DIR',
+        'WIN_CLAUSE_APPS_DIR',
+        'WIN_CLAUSE_LOGS_DIR',
+        'WIN_CLAUSE_TEMP_DIR',
+        'WIN_CLAUSE_CACHE_DIR',
+        'WIN_TEMP',
+        'WIN_TMP',
+        'WIN_HOMEDRIVE',
+        'WIN_HOMEPATH'
+    ) | ForEach-Object {
+        Remove-Item "Env:$_" -ErrorAction SilentlyContinue
+    }
+    
     # POSIX XDG Standards inside .home
     $env:XDG_CONFIG_HOME = Join-Path $ProjectRoot $env:XDG_CONFIG_HOME
     $env:XDG_DATA_HOME   = Join-Path $ProjectRoot $env:XDG_DATA_HOME
