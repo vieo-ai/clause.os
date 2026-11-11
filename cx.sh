@@ -201,78 +201,32 @@ expand_hermetic_archive() {
 mkdir -p "$LOCAL_BIN" "$APP_DIR" "$TMP_DIR" "$NU_CONFIG_DIR"
 
 # ==============================================================================
-# TWO-BINARY SEEDING (MISE & NU)
+# MODULAR RECIPE DISCOVERY & EXECUTION (STAGE 0 & STAGE 1)
 # ==============================================================================
-MISE_BIN="${LOCAL_BIN}/mise"
-NU_BIN="${LOCAL_BIN}/nu"
+INSTALLER_DIR="${PROJECT_ROOT}/${POSIX_INSTALLERS_DIR}"
 
-# 1. Mise Seeding
-if [ ! -x "$MISE_BIN" ]; then
-    MISE_VERSION="$(get_toml_value "mise")"
-    if [ -z "$MISE_VERSION" ]; then
-        write_clause_log "Missing required version definition for 'mise' in .clause.toml" "FATAL"
-        exit 1
-    fi
+if [ -d "$INSTALLER_DIR" ]; then
+    shopt -s nullglob
+    RECIPES=("$INSTALLER_DIR"/installer_*.sh)
+    IFS=$'\n' RECIPES=($(sort <<<"${RECIPES[*]}"))
+    unset IFS
 
-    CLEAN_MISE_VER="$(echo "$MISE_VERSION" | sed 's/^v//')"
-    write_clause_log "Seeding Mise (v${CLEAN_MISE_VER}) into $LOCAL_BIN..." "INFO"
+    for recipe in "${RECIPES[@]}"; do
+        base_name=$(basename "$recipe" .sh)
+        # Extract tool key: 'installer_mise' -> 'mise'
+        tool_key=$(echo "$base_name" | sed -E 's/^([0-9]+_)?installer_//')
 
-    if [ "$IS_MAC" -eq 1 ]; then
-        case "$ARCH" in
-            arm64) MISE_ASSET="mise-v${CLEAN_MISE_VER}-macos-arm64" ;;
-            *)     MISE_ASSET="mise-v${CLEAN_MISE_VER}-macos-x64" ;;
-        esac
-    else
-        case "$ARCH" in
-            aarch64) MISE_ASSET="mise-v${CLEAN_MISE_VER}-linux-arm64" ;;
-            *)       MISE_ASSET="mise-v${CLEAN_MISE_VER}-linux-x64" ;;
-        esac
-    fi
+        # Read version from .clause.toml
+        version=$(get_toml_value "$tool_key")
+        if [ -z "$version" ]; then
+            echo "[ClauseOS] FATAL: Missing required version definition for '$tool_key' in .clause.toml" >&2
+            exit 1
+        fi
 
-    MISE_URL="https://github.com/jdx/mise/releases/download/v${CLEAN_MISE_VER}/${MISE_ASSET}"
-    get_file "$MISE_URL" "$MISE_BIN"
-    chmod +x "$MISE_BIN"
-fi
-
-# 2. Nushell Seeding
-if [ ! -x "$NU_BIN" ]; then
-    NU_VERSION="$(get_toml_value "nu")"
-    if [ -z "$NU_VERSION" ]; then
-        write_clause_log "Missing required version definition for 'nu' in .clause.toml" "FATAL"
-        exit 1
-    fi
-
-    CLEAN_NU_VER="$(echo "$NU_VERSION" | sed 's/^v//')"
-    write_clause_log "Seeding Nushell (v${CLEAN_NU_VER}) into $LOCAL_BIN..." "INFO"
-
-    if [ "$IS_MAC" -eq 1 ]; then
-        case "$ARCH" in
-            arm64) NU_TARGET="aarch64-apple-darwin" ;;
-            *)     NU_TARGET="x86_64-apple-darwin" ;;
-        esac
-    else
-        case "$ARCH" in
-            aarch64) NU_TARGET="aarch64-unknown-linux-musl" ;;
-            *)       NU_TARGET="x86_64-unknown-linux-musl" ;;
-        esac
-    fi
-
-    NU_ASSET="nu-${CLEAN_NU_VER}-${NU_TARGET}.tar.gz"
-    NU_URL="https://github.com/nushell/nushell/releases/download/${CLEAN_NU_VER}/${NU_ASSET}"
-    NU_DOWNLOAD="${TMP_DIR}/${NU_ASSET}"
-    NU_EXTRACT="${TMP_DIR}/nu_extracted"
-
-    get_file "$NU_URL" "$NU_DOWNLOAD"
-    expand_hermetic_archive "$NU_DOWNLOAD" "$NU_EXTRACT"
-
-    EXTRACTED_NU="$(find "$NU_EXTRACT" -type f -name "nu" | head -n 1)"
-    if [ -z "$EXTRACTED_NU" ]; then
-        write_clause_log "Failed to locate extracted nu binary in $NU_EXTRACT" "FATAL"
-        exit 1
-    fi
-
-    mv "$EXTRACTED_NU" "$NU_BIN"
-    chmod +x "$NU_BIN"
+        chmod +x "$recipe"
+        "$recipe" --version "$version" --project-root "$PROJECT_ROOT"
+    done
+    shopt -u nullglob
 fi
 
 # Cleanup transient downloads
