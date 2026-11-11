@@ -25,6 +25,15 @@ if [ -z "$VERSION" ]; then
     exit 1
 fi
 
+# ==============================================================================
+# FALLBACK LOGGER (Right here: before any calls to write_clause_log)
+# ==============================================================================
+if ! command -v write_clause_log >/dev/null 2>&1; then
+    write_clause_log() {
+        echo "[ClauseOS ${2:-INFO}] $1"
+    }
+fi
+
 LOCAL_BIN="${CLAUSE_BIN_DIR:-${PROJECT_ROOT}/.home/.local/bin}"
 TMP_DIR="${CLAUSE_TEMP_DIR:-${PROJECT_ROOT}/.home/.cache}"
 NU_BIN="${LOCAL_BIN}/nu"
