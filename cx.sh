@@ -206,27 +206,23 @@ mkdir -p "$LOCAL_BIN" "$APP_DIR" "$TMP_DIR" "$NU_CONFIG_DIR"
 INSTALLER_DIR="${PROJECT_ROOT}/${POSIX_INSTALLERS_DIR}"
 
 if [ -d "$INSTALLER_DIR" ]; then
-    shopt -s nullglob
-    RECIPES=("$INSTALLER_DIR"/installer_*.sh)
-    IFS=$'\n' RECIPES=($(sort <<<"${RECIPES[*]}"))
-    unset IFS
+    for recipe in "$INSTALLER_DIR"/installer_*.sh; do
+        [ -e "$recipe" ] || continue
 
-    for recipe in "${RECIPES[@]}"; do
-        base_name=$(basename "$recipe" .sh)
+        base_name="$(basename "$recipe" .sh)"
         # Extract tool key: 'installer_mise' -> 'mise'
-        tool_key=$(echo "$base_name" | sed -E 's/^([0-9]+_)?installer_//')
+        tool_key="$(echo "$base_name" | sed -E 's/^([0-9]+_)?installer_//')"
 
         # Read version from .clause.toml
-        version=$(get_toml_value "$tool_key")
+        version="$(get_toml_value "$tool_key")"
         if [ -z "$version" ]; then
-            echo "[ClauseOS] FATAL: Missing required version definition for '$tool_key' in .clause.toml" >&2
+            write_clause_log "Missing required version definition for '$tool_key' in .clause.toml" "FATAL"
             exit 1
         fi
 
         chmod +x "$recipe"
         "$recipe" --version "$version" --project-root "$PROJECT_ROOT"
     done
-    shopt -u nullglob
 fi
 
 # Cleanup transient downloads
