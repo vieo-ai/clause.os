@@ -304,7 +304,8 @@ ENV_NU="${PROJECT_ROOT}/scripts/cli/nu/core/boot.nu"
 CONFIG_NU="${NU_CONFIG_DIR}/config.nu"
 
 IS_NON_INTERACTIVE=0
-if [ ! -t 0 ] || [ "$CI" = "true" ]; then
+# If checking if CI is enabled:
+if [ "${CI:-false}" = "true" ]; then
     IS_NON_INTERACTIVE=1
 fi
 
