@@ -8,32 +8,119 @@ param(
 $ErrorActionPreference = 'Stop'
 
 # ==============================================================================
-# RESOLVE ROOT & LOAD CANONICAL ENVIRONMENT
+# RESOLVE ROOT & LOAD CANONICAL ENVIRONMENT FROM .ENV (SSOT)
 # ==============================================================================
+# 1. Base Anchors
 $ProjectRoot = if ($env:CLAUSE_PROJECT_ROOT) { $env:CLAUSE_PROJECT_ROOT } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
 $env:CLAUSE_PROJECT_ROOT = $ProjectRoot
 
-# Ingest the Single Source of Truth
-$EnvScript = Join-Path $ProjectRoot "scripts\cli\pwsh\config\env.ps1"
-if (-not (Test-Path $EnvScript)) {
-    throw "[ClauseOS] Critical: Canonical environment file missing at $EnvScript"
+# Ingest the Single Source of Truth (.env file)
+$DotEnvPath = Join-Path $ProjectRoot ".env"
+if (-not (Test-Path $DotEnvPath)) {
+    throw "[ClauseOS] Critical: Canonical environment file missing at $DotEnvPath"
 }
-. $EnvScript
 
-# Detect OS flags
-$IsOSWindows = $IsWindows -or $env:OS -eq "Windows_NT"
-
-# Ensure hermetic AppData trees exist so nu and cosign/TUF never hit missing dirs
-if ($IsOSWindows) {
-    $WinRoaming = Join-Path $env:CLAUSE_HOME "AppData\Roaming"
-    $WinLocal   = Join-Path $env:CLAUSE_HOME "AppData\Local"
-    @($WinRoaming, $WinLocal) | ForEach-Object {
-        if (-not (Test-Path $_)) { New-Item -ItemType Directory -Force -Path $_ | Out-Null }
+Get-Content -Path $DotEnvPath | ForEach-Object {
+    $line = $_.Trim()
+    if ($line -and -not ($line.StartsWith("#")) -and ($line -match '^([^=]+)=(.*)$')) {
+        $key = $matches[1].Trim()
+        $val = $matches[2].Trim().Trim('"').Trim("'")
+        [Environment]::SetEnvironmentVariable($key, $val, 'Process')
     }
 }
 
-$IsOSMac   = $IsMacOS -or ($PSVersionTable.OS -like "*Darwin*")
-$IsOSLinux = -not $IsOSWindows -and -not $IsOSMac
+# 2. Confinement Anchors
+$ClauseHome = Join-Path $ProjectRoot $(if ($env:CLAUSE_HOME) { $env:CLAUSE_HOME } else { ".home" })
+$env:CLAUSE_HOME = $ClauseHome
+$env:HOME        = $ClauseHome
+$env:USERPROFILE = $ClauseHome
+
+# 3. Platform Hierarchy
+$IsOSWindows = $IsWindows -or $env:OS -eq "Windows_NT"
+$IsOSMac     = $IsMacOS -or ($PSVersionTable.OS -like "*Darwin*")
+$IsOSLinux   = -not $IsOSWindows -and -not $IsOSMac
+
+if ($IsOSWindows) {
+    # Windows Native NT Layout inside .home
+    $WinLocal   = Join-Path $ProjectRoot $env:WIN_LOCALAPPDATA
+    $WinRoaming = Join-Path $ProjectRoot $env:WIN_APPDATA
+
+    $env:LOCALAPPDATA = $WinLocal
+    $env:APPDATA      = $WinRoaming
+
+    $env:CLAUSE_BIN_DIR   = Join-Path $ProjectRoot $env:WIN_CLAUSE_BIN_DIR
+    $env:CLAUSE_APPS_DIR  = Join-Path $ProjectRoot $env:WIN_CLAUSE_APPS_DIR
+    $env:CLAUSE_CACHE_DIR = Join-Path $ProjectRoot $env:WIN_CLAUSE_CACHE_DIR
+    $env:CLAUSE_TEMP_DIR  = Join-Path $ProjectRoot $env:WIN_CLAUSE_TEMP_DIR
+    $env:CLAUSE_LOGS_DIR  = Join-Path $ProjectRoot $env:WIN_CLAUSE_LOGS_DIR
+
+    # Mise paths on Windows
+    $env:MISE_DATA_DIR   = Join-Path $WinLocal "mise"
+    $env:MISE_CONFIG_DIR = Join-Path $WinRoaming "mise"
+    $env:MISE_STATE_DIR  = Join-Path $WinLocal "mise\state"
+    $env:MISE_CACHE_DIR  = Join-Path $WinLocal "mise\cache"
+    $env:MISE_LOG_FILE   = Join-Path $WinLocal "mise\logs\mise.log"
+    $env:GH_CONFIG_DIR   = Join-Path $WinRoaming "GitHub CLI"
+
+    # Ensure hermetic AppData trees exist so nu and cosign/TUF never hit missing dirs
+    @($WinRoaming, $WinLocal) | ForEach-Object {
+        if (-not (Test-Path $_)) { New-Item -ItemType Directory -Force -Path $_ | Out-Null }
+    }
+} else {
+    # POSIX XDG Standards inside .home
+    $env:XDG_CONFIG_HOME = Join-Path $ProjectRoot $env:XDG_CONFIG_HOME
+    $env:XDG_DATA_HOME   = Join-Path $ProjectRoot $env:XDG_DATA_HOME
+    $env:XDG_STATE_HOME  = Join-Path $ProjectRoot $env:XDG_STATE_HOME
+    $env:XDG_CACHE_HOME  = Join-Path $ProjectRoot $env:XDG_CACHE_HOME
+
+    $env:CLAUSE_BIN_DIR   = Join-Path $ProjectRoot $env:POSIX_CLAUSE_BIN_DIR
+    $env:CLAUSE_APPS_DIR  = Join-Path $ProjectRoot $env:POSIX_CLAUSE_APPS_DIR
+    $env:CLAUSE_CACHE_DIR = $env:XDG_CACHE_HOME
+    $env:CLAUSE_TEMP_DIR  = Join-Path $env:XDG_CACHE_HOME "tmp_bootstrap"
+    $env:CLAUSE_LOGS_DIR  = Join-Path $ProjectRoot $env:POSIX_CLAUSE_LOGS_DIR
+
+    # Mise paths on POSIX
+    $env:MISE_DATA_DIR   = Join-Path $env:XDG_DATA_HOME "mise"
+    $env:MISE_CONFIG_DIR = Join-Path $env:XDG_CONFIG_HOME "mise"
+    $env:MISE_STATE_DIR  = Join-Path $env:XDG_STATE_HOME "mise"
+    $env:MISE_CACHE_DIR  = Join-Path $env:XDG_CACHE_HOME "mise"
+    $env:MISE_LOG_FILE   = Join-Path $env:XDG_STATE_HOME "mise\logs\mise.log"
+    $env:GH_CONFIG_DIR   = Join-Path $env:XDG_CONFIG_HOME "gh"
+}
+
+# 4. Invariant Directories & Hermetic SSH Containment
+$SshDir = Join-Path $ClauseHome ".ssh"
+@( $env:CLAUSE_CACHE_DIR, $env:CLAUSE_BIN_DIR, $SshDir ) | ForEach-Object {
+    if (-not (Test-Path $_)) {
+        New-Item -ItemType Directory -Force -Path $_ | Out-Null
+    }
+}
+
+$SshConfig  = Join-Path $SshDir "config"
+$KnownHosts = Join-Path $SshDir "known_hosts"
+
+# Format with forward slashes for OpenSSH argument parsing
+$SshConfigFwd  = $SshConfig.Replace('\', '/')
+$KnownHostsFwd = $KnownHosts.Replace('\', '/')
+
+if (Test-Path $SshConfig) {
+    $env:GIT_SSH_COMMAND = "ssh -F '$SshConfigFwd' -o UserKnownHostsFile='$KnownHostsFwd'"
+} else {
+    $KeyEd  = (Join-Path $SshDir "id_ed25519").Replace('\', '/')
+    $KeyRsa = (Join-Path $SshDir "id_rsa").Replace('\', '/')
+    $env:GIT_SSH_COMMAND = "ssh -i '$KeyEd' -i '$KeyRsa' -o UserKnownHostsFile='$KnownHostsFwd'"
+}
+
+# 5. Identity & Tool Routing
+$env:GIT_CONFIG_GLOBAL = Join-Path $ProjectRoot $env:GIT_CONFIG_GLOBAL
+$env:NU_CONFIG_DIR     = Join-Path $ProjectRoot $env:NU_CONFIG_DIR
+$env:PULUMI_HOME       = Join-Path $ProjectRoot $env:PULUMI_HOME
+
+# 6. Global PATH Management (Prepend Stage 0 Binaries Only)
+if ($env:PATH -notlike "*$($env:CLAUSE_BIN_DIR)*") {
+    $PathSep = if ($IsOSWindows) { ";" } else { ":" }
+    $env:PATH = "$($env:CLAUSE_BIN_DIR)$PathSep$env:PATH"
+}
 
 # ==============================================================================
 # LOGGING SYSTEM INITIALIZATION
