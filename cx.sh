@@ -210,10 +210,8 @@ if [ -d "$INSTALLER_DIR" ]; then
         [ -e "$recipe" ] || continue
 
         base_name="$(basename "$recipe" .sh)"
-        # Extract tool key: 'installer_mise' -> 'mise'
         tool_key="$(echo "$base_name" | sed -E 's/^([0-9]+_)?installer_//')"
 
-        # Read version from .clause.toml
         version="$(get_toml_value "$tool_key")"
         if [ -z "$version" ]; then
             write_clause_log "Missing required version definition for '$tool_key' in .clause.toml" "FATAL"
@@ -221,7 +219,8 @@ if [ -d "$INSTALLER_DIR" ]; then
         fi
 
         chmod +x "$recipe"
-        "$recipe" --version "$version" --project-root "$PROJECT_ROOT"
+        # Dot-source the recipe so it shares cx.sh scope and functions
+        . "$recipe" --version "$version" --project-root "$PROJECT_ROOT"
     done
 fi
 
