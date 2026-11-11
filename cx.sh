@@ -34,6 +34,19 @@ while IFS='=' read -r key val || [ -n "$key" ]; do
     esac
 done < "$DOTENV_FILE"
 
+# ------------------------------------------------------------------------------
+# CRITICAL: Scrub all Windows NT platform keys from the POSIX process environment.
+# Ensures that child processes, tools, and Nushell do not inherit WIN_* paths
+# on Linux/macOS runtimes.
+# ------------------------------------------------------------------------------
+unset WIN_LOCALAPPDATA \
+      WIN_APPDATA \
+      WIN_CLAUSE_BIN_DIR \
+      WIN_CLAUSE_APPS_DIR \
+      WIN_CLAUSE_LOGS_DIR \
+      WIN_CLAUSE_TEMP_DIR \
+      WIN_CLAUSE_CACHE_DIR
+
 # 2. Confinement Anchors
 export CLAUSE_HOME="${PROJECT_ROOT}/${CLAUSE_HOME:-.home}"
 export HOME="$CLAUSE_HOME"
