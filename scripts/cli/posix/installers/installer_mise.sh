@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VERSION=""
-PROJECT_ROOT=""
+# Accept from environment if already set by cx.sh, or parse positional flags
+VERSION="${VERSION:-}"
+PROJECT_ROOT="${PROJECT_ROOT:-}"
 
-while [[ $# -gt 0 ]]; do
+while [ $# -gt 0 ]; do
     case "$1" in
         --version|-v)
             VERSION="$2"
@@ -22,7 +23,7 @@ done
 
 if [ -z "$VERSION" ]; then
     echo "[ClauseOS] FATAL: Missing --version argument" >&2
-    exit 1
+    return 1 2>/dev/null || exit 1
 fi
 
 # ==============================================================================
