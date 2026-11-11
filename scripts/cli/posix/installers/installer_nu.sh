@@ -38,8 +38,9 @@ LOCAL_BIN="${CLAUSE_BIN_DIR:-${PROJECT_ROOT}/.home/.local/bin}"
 TMP_DIR="${CLAUSE_TEMP_DIR:-${PROJECT_ROOT}/.home/.cache}"
 NU_BIN="${LOCAL_BIN}/nu"
 
+# Fast-path check: use return instead of exit
 if [ -x "$NU_BIN" ]; then
-    exit 0
+    return 0 2>/dev/null || exit 0
 fi
 
 CLEAN_NU_VER="$(echo "$VERSION" | sed 's/^v//')"
