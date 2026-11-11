@@ -22,6 +22,7 @@ Desktop.ini
 .DS_Store
 .lesshst
 bootstrap.txt
+.env
 
 # User-specific files
 .archive/
