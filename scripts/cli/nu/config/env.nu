@@ -62,6 +62,23 @@ if $is_windows {
     $env.CLAUSE_TEMP_DIR  = ($project_root | path join $env.WIN_CLAUSE_TEMP_DIR)
     $env.CLAUSE_LOGS_DIR  = ($project_root | path join $env.WIN_CLAUSE_LOGS_DIR)
 
+    # --------------------------------------------------------------------------
+    # HERMETIC NT HOME & SCRATCH LOCKDOWN (From .env definitions)
+    # --------------------------------------------------------------------------
+    $env.TEMP = ($project_root | path join $env.WIN_TEMP)
+    $env.TMP  = ($project_root | path join $env.WIN_TMP)
+
+    if ($env.WIN_HOMEDRIVE? | is-not-empty) and ($env.WIN_HOMEPATH? | is-not-empty) {
+        $env.HOMEDRIVE = $env.WIN_HOMEDRIVE
+        $env.HOMEPATH  = $env.WIN_HOMEPATH
+    } else {
+        let home_drive = ($clause_home | parse -r '^(?P<drive>[A-Za-z]:)(?P<path>\\.*)$')
+        if ($home_drive | is-not-empty) {
+            $env.HOMEDRIVE = $home_drive.0.drive
+            $env.HOMEPATH  = $home_drive.0.path
+        }
+    }
+
     $env.MISE_DATA_DIR   = ($win_local | path join "mise")
     $env.MISE_CONFIG_DIR = ($win_roaming | path join "mise")
     $env.MISE_STATE_DIR  = ($win_local | path join "mise" "state")
