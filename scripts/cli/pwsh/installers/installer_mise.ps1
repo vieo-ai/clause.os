@@ -1,6 +1,11 @@
+[CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true)] [string]$Version
+    [Parameter(Mandatory = $true)]
+    [string]$Version,
+    [Parameter(Mandatory = $false)]
+    [string]$ProjectRoot
 )
+
 $ErrorActionPreference = 'Stop'
 
 $LocalBin = $env:CLAUSE_BIN_DIR
