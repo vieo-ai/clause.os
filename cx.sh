@@ -219,8 +219,12 @@ if [ -d "$INSTALLER_DIR" ]; then
         fi
 
         chmod +x "$recipe"
-        # Dot-source the recipe so it shares cx.sh scope and functions
-        . "$recipe" --version "$version" --project-root "$PROJECT_ROOT"
+
+        # Export/set for the recipe to consume directly
+        VERSION="$version"
+        RECIPE_PATH="$recipe"
+
+        . "$recipe"
     done
 fi
 
