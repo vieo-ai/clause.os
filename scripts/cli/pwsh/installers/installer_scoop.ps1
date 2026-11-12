@@ -63,11 +63,28 @@ try {
 }
 
 # Ensure Scoop shims and binaries are accessible inside CLAUSE_BIN_DIR
-$ScoopBinTarget = Join-Path $LocalBin "scoop.cmd"
+# Resolve actual core scoop.ps1 path inside the hermetic tree
+$ScoopCoreScript = Join-Path $ScoopDir "apps\scoop\current\bin\scoop.ps1"
+$ScoopBinTarget  = Join-Path $LocalBin "scoop.cmd"
+
 if (-not (Test-Path $ScoopBinTarget)) {
-    # Generate wrapper CMD in $LocalBin delegating to the hermetic scoop.ps1
-    Set-Content -Path $ScoopBinTarget -Value @"
+    $ShimContent = @"
+@rem $ScoopCoreScript
 @echo off
-pwsh.exe -NoProfile -ExecutionPolicy Bypass -File "$ScoopCmd" %*
-"@ -Encoding ASCII
+setlocal enabledelayedexpansion
+set args=%*
+:: replace problem characters in arguments
+set args=%args:"='%
+set args=%args:(=`(%
+set args=%args:)=`)%
+set invalid="='
+if !args! == !invalid! ( set args= )
+where /q pwsh.exe
+if %errorlevel% equ 0 (
+    pwsh -noprofile -ex unrestricted -file "$ScoopCoreScript" %args%
+) else (
+    powershell -noprofile -ex unrestricted -file "$ScoopCoreScript" %args%
+)
+"@
+    Set-Content -Path $ScoopBinTarget -Value $ShimContent -Encoding ASCII
 }
