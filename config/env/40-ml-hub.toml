@@ -1,0 +1,15 @@
+# ==============================================================================
+# [restricted] 40-ML-HUB: HUGGING FACE HUB & RUNTIME ISOLATION
+# Disables telemetry, enforces deterministic cache behavior, and enables
+# fast transfers inside the hermetic cache tree.
+# WARNING: Changing these breaks sandboxing invariants
+# ==============================================================================
+
+[env]
+HF_HOME                  = "${CLAUSE_CACHE_DIR}/huggingface"
+HF_HUB_CACHE             = "${HF_HOME}/hub"
+HF_ASSETS_CACHE          = "${HF_HOME}/assets"
+HF_HUB_DISABLE_TELEMETRY = "1"
+HF_HUB_ENABLE_HF_TRANSFER = "1"
+HF_HUB_DISABLE_PROGRESS_BARS = "0"
+DO_NOT_TRACK             = "1"
