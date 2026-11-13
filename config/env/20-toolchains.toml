@@ -1,0 +1,30 @@
+# ==============================================================================
+# [restricted] 20-TOOLCHAINS: MISE, HOMEBREW & SCOOP ISOLATION
+# Confines package managers, shims, bottles, and caches inside .home.
+# WARNING: Changing these breaks sandboxing invariants
+# ==============================================================================
+
+[env]
+MISE_DATA_DIR               = "${CLAUSE_DATA_DIR}/mise"
+MISE_CACHE_DIR              = "${CLAUSE_CACHE_DIR}/mise"
+MISE_STATE_DIR              = "${CLAUSE_STATE_DIR}/mise"
+MISE_CONFIG_DIR             = "${CLAUSE_CONFIG_DIR}/mise"
+MISE_YES                    = "1"
+MISE_NOT_FOUND_AUTO_INSTALL = "0"
+MISE_EXPERIMENTAL           = "1"
+
+[env.posix]
+MISE_SYSTEM_BREW_PREFIX = "${CLAUSE_CACHE_DIR}/toolchain/brew"
+HOMEBREW_PREFIX         = "${CLAUSE_CACHE_DIR}/toolchain/brew"
+HOMEBREW_CELLAR         = "${HOMEBREW_PREFIX}/Cellar"
+HOMEBREW_REPOSITORY     = "${HOMEBREW_PREFIX}"
+HOMEBREW_CACHE          = "${CLAUSE_CACHE_DIR}/homebrew"
+HOMEBREW_LOGS           = "${CLAUSE_STATE_DIR}/homebrew/logs"
+HOMEBREW_TEMP           = "${CLAUSE_TEMP_DIR}/homebrew"
+HOMEBREW_NO_AUTO_UPDATE = "1"
+HOMEBREW_NO_ANALYTICS   = "1"
+HOMEBREW_NO_ENV_HINTS   = "1"
+
+[env.windows]
+SCOOP        = "${CLAUSE_CACHE_DIR}/toolchain/scoop"
+SCOOP_GLOBAL = "${CLAUSE_CACHE_DIR}/toolchain/scoop_global"
