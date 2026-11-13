@@ -1,6 +1,6 @@
 # ==============================================================================
-# [restricted] 20-TOOLCHAINS: MISE, HOMEBREW & SCOOP ISOLATION
-# Confines package managers, shims, bottles, and caches inside .home.
+# [restricted] 20-TOOLCHAINS: MISE, HOMEBREW, SCOOP & ENGINE VERIFICATION
+# Confines package managers, shims, bottles, caches, and required engine probes.
 # WARNING: Changing these breaks sandboxing invariants
 # ==============================================================================
 
@@ -9,9 +9,16 @@ MISE_DATA_DIR               = "${CLAUSE_DATA_DIR}/mise"
 MISE_CACHE_DIR              = "${CLAUSE_CACHE_DIR}/mise"
 MISE_STATE_DIR              = "${CLAUSE_STATE_DIR}/mise"
 MISE_CONFIG_DIR             = "${CLAUSE_CONFIG_DIR}/mise"
+MISE_LOG_FILE               = "${CLAUSE_LOGS_DIR}/mise.log"
+MISE_SHIMS_DIR              = "${MISE_DATA_DIR}/shims"
+MISE_INSTALLS_DIR           = "${MISE_DATA_DIR}/installs"
+
 MISE_YES                    = "1"
 MISE_NOT_FOUND_AUTO_INSTALL = "0"
 MISE_EXPERIMENTAL           = "1"
+
+# Space-delimited list of required toolchain engines verified after Stage 2
+CLAUSE_REQUIRED_ENGINES     = "comfyui lemonade code fastflowlm unsloth"
 
 [env.posix]
 MISE_SYSTEM_BREW_PREFIX = "${CLAUSE_CACHE_DIR}/toolchain/brew"
@@ -28,3 +35,6 @@ HOMEBREW_NO_ENV_HINTS   = "1"
 [env.windows]
 SCOOP        = "${CLAUSE_CACHE_DIR}/toolchain/scoop"
 SCOOP_GLOBAL = "${CLAUSE_CACHE_DIR}/toolchain/scoop_global"
+
+[provision.posix]
+BREW_PREFIX = "${MISE_SYSTEM_BREW_PREFIX}"
