@@ -1,20 +1,17 @@
 # ==============================================================================
-# [restricted] 00-CORE: HERMETIC BASE ANCHORS & OS PLATFORM HIERARCHY
+# [restricted] 00-CORE: HERMETIC BASE ANCHORS, OS HIERARCHY & PROVISIONING
 # Defines canonical root directories, XDG standards, Windows NT Known Folders,
-# logging defaults, and drop-in installer paths.
+# bootloader file targets, and directories provisioned on boot.
 # WARNING: Changing these breaks sandboxing invariants
 # ==============================================================================
 
-# ------------------------------------------------------------------------------
-# Canonical Anchors (Resolved to absolute paths against PROJECT_ROOT at boot)
-# ------------------------------------------------------------------------------
 [anchors.posix]
 CLAUSE_HOME       = ".home"
 CLAUSE_DATA_DIR   = ".home/.local/share"
 CLAUSE_CACHE_DIR  = ".home/.cache"
 CLAUSE_STATE_DIR  = ".home/.local/state"
 CLAUSE_CONFIG_DIR = ".home/.config"
-CLAUSE_TEMP_DIR   = ".home/.cache/tmp"
+CLAUSE_TEMP_DIR   = ".home/.cache/tmp_bootstrap"
 
 [anchors.windows]
 CLAUSE_HOME       = ".home"
@@ -24,48 +21,57 @@ CLAUSE_STATE_DIR  = ".home/AppData/Local/state"
 CLAUSE_CONFIG_DIR = ".home/AppData/Local/config"
 CLAUSE_TEMP_DIR   = ".home/AppData/Local/Temp"
 
-# ------------------------------------------------------------------------------
-# Cross-Platform Core Environment
-# ------------------------------------------------------------------------------
 [env]
 # [optional] Runtime logging & diagnostics (trace | debug | info | warn | error)
-USER_LOG_LEVEL      = ""
-MISE_LOG_FILE_LEVEL = ""
+USER_LOG_LEVEL       = ""
+MISE_LOG_FILE_LEVEL  = ""
 
 # Hermetic base confinement
-CLAUSE_HOME = "${CLAUSE_HOME}"
-HOME        = "${CLAUSE_HOME}"
-USERPROFILE = "${CLAUSE_HOME}"
+CLAUSE_HOME          = "${CLAUSE_HOME}"
+HOME                 = "${CLAUSE_HOME}"
+USERPROFILE          = "${CLAUSE_HOME}"
 
-# ------------------------------------------------------------------------------
-# POSIX / XDG Directory Standards (Linux, macOS, WSL)
-# ------------------------------------------------------------------------------
+# Bootloader control files
+CLAUSE_MANIFEST      = ".clause.toml"
+CLAUSE_BOOTSTRAP_LOG = "${CLAUSE_LOGS_DIR}/bootstrap.log"
+
 [env.posix]
-XDG_CONFIG_HOME = "${CLAUSE_CONFIG_DIR}"
-XDG_DATA_HOME   = "${CLAUSE_DATA_DIR}"
-XDG_STATE_HOME  = "${CLAUSE_STATE_DIR}"
-XDG_CACHE_HOME  = "${CLAUSE_CACHE_DIR}"
+XDG_DATA_HOME    = "${CLAUSE_DATA_DIR}"
+XDG_CACHE_HOME   = "${CLAUSE_CACHE_DIR}"
+XDG_STATE_HOME   = "${CLAUSE_STATE_DIR}"
+XDG_CONFIG_HOME  = "${CLAUSE_CONFIG_DIR}"
 
-CLAUSE_BIN_DIR  = "${CLAUSE_HOME}/.local/bin"
-CLAUSE_APPS_DIR = "${CLAUSE_HOME}/.local/apps"
-CLAUSE_LOGS_DIR = "${CLAUSE_HOME}/.local/logs"
-CLAUSE_TEMP_DIR = "${CLAUSE_TEMP_DIR}"
-INSTALLERS_DIR  = "scripts/cli/posix/installers"
-
-# ------------------------------------------------------------------------------
-# Windows NT Platform Hierarchy & Scratch Confinement
-# ------------------------------------------------------------------------------
-[env.windows]
-LOCALAPPDATA    = "${CLAUSE_DATA_DIR}"
-APPDATA         = "${CLAUSE_HOME}/AppData/Roaming"
-CLAUSE_BIN_DIR  = "${CLAUSE_DATA_DIR}/Programs/bin"
-CLAUSE_APPS_DIR = "${CLAUSE_DATA_DIR}/Programs/apps"
-CLAUSE_LOGS_DIR = "${CLAUSE_DATA_DIR}/Programs/logs"
-CLAUSE_TEMP_DIR = "${CLAUSE_TEMP_DIR}"
+CLAUSE_BIN_DIR   = "${CLAUSE_HOME}/.local/bin"
+CLAUSE_APPS_DIR  = "${CLAUSE_HOME}/.local/apps"
+CLAUSE_LOGS_DIR  = "${CLAUSE_HOME}/.local/logs"
 CLAUSE_CACHE_DIR = "${CLAUSE_CACHE_DIR}"
+CLAUSE_TEMP_DIR  = "${CLAUSE_TEMP_DIR}"
+INSTALLERS_DIR   = "scripts/cli/posix/installers"
 
-TEMP            = "${CLAUSE_TEMP_DIR}"
-TMP             = "${CLAUSE_TEMP_DIR}"
-HOMEDRIVE       = ""
-HOMEPATH        = ""
-INSTALLERS_DIR  = "scripts/cli/pwsh/installers"
+[env.windows]
+LOCALAPPDATA     = "${CLAUSE_DATA_DIR}"
+APPDATA          = "${CLAUSE_HOME}/AppData/Roaming"
+
+CLAUSE_BIN_DIR   = "${CLAUSE_DATA_DIR}/Programs/bin"
+CLAUSE_APPS_DIR  = "${CLAUSE_DATA_DIR}/Programs/apps"
+CLAUSE_LOGS_DIR  = "${CLAUSE_DATA_DIR}/Programs/logs"
+CLAUSE_CACHE_DIR = "${CLAUSE_CACHE_DIR}"
+CLAUSE_TEMP_DIR  = "${CLAUSE_TEMP_DIR}"
+
+TEMP             = "${CLAUSE_TEMP_DIR}"
+TMP              = "${CLAUSE_TEMP_DIR}"
+HOMEDRIVE        = ""
+HOMEPATH         = ""
+INSTALLERS_DIR   = "scripts/cli/pwsh/installers"
+
+# Directories automatically created on disk by the bootloader at startup
+[provision]
+BIN   = "${CLAUSE_BIN_DIR}"
+APPS  = "${CLAUSE_APPS_DIR}"
+CACHE = "${CLAUSE_CACHE_DIR}"
+TEMP  = "${CLAUSE_TEMP_DIR}"
+LOGS  = "${CLAUSE_LOGS_DIR}"
+
+[provision.windows]
+LOCALAPPDATA = "${LOCALAPPDATA}"
+APPDATA      = "${APPDATA}"
