@@ -1,10 +1,19 @@
 # ==============================================================================
 # [restricted] 10-IDENTITY: GIT, SSH & CLOUD AUTH CONFINEMENT
-# Isolates developer identity and credentials strictly to the hermetic tree.
-# Prevents unintentional reads from machine-global ~/.gitconfig or ~/.ssh.
+# Isolates developer identity, SSH keys, and CLI auth strictly inside .home.
 # WARNING: Changing these breaks sandboxing invariants
 # ==============================================================================
 
 [env]
-GIT_CONFIG_GLOBAL = "${CLAUSE_HOME}/.gitconfig"
-PULUMI_HOME       = "${CLAUSE_HOME}/.pulumi"
+GIT_CONFIG_GLOBAL      = "${CLAUSE_HOME}/.gitconfig"
+PULUMI_HOME            = "${CLAUSE_HOME}/.pulumi"
+GH_CONFIG_DIR          = "${CLAUSE_CONFIG_DIR}/gh"
+
+CLAUSE_SSH_DIR         = "${CLAUSE_HOME}/.ssh"
+CLAUSE_SSH_CONFIG      = "${CLAUSE_SSH_DIR}/config"
+CLAUSE_SSH_KNOWN_HOSTS = "${CLAUSE_SSH_DIR}/known_hosts"
+CLAUSE_SSH_KEY_ED25519 = "${CLAUSE_SSH_DIR}/id_ed25519"
+CLAUSE_SSH_KEY_RSA     = "${CLAUSE_SSH_DIR}/id_rsa"
+
+[provision]
+SSH = "${CLAUSE_SSH_DIR}"
