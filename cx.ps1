@@ -8,158 +8,206 @@ param(
 $ErrorActionPreference = 'Stop'
 
 # ==============================================================================
-# RESOLVE ROOT & LOAD CANONICAL ENVIRONMENT FROM .ENV (SSOT)
+# RESOLVE ROOT & LOAD CANONICAL ENVIRONMENT FROM MODULAR TOML (SSOT)
 # ==============================================================================
 # 1. Base Anchors
 $ProjectRoot = if ($env:CLAUSE_PROJECT_ROOT) { $env:CLAUSE_PROJECT_ROOT } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
 $env:CLAUSE_PROJECT_ROOT = $ProjectRoot
 
-# Ingest the Single Source of Truth (.env file)
-$DotEnvPath = Join-Path $ProjectRoot ".env"
-if (-not (Test-Path $DotEnvPath)) {
-    throw "[ClauseOS] Critical: Canonical environment file missing at $DotEnvPath"
+$IsOSWindows = $IsWindows -or $env:OS -eq "Windows_NT"
+$IsOSMac     = $IsMacOS -or ($PSVersionTable.OS -like "*Darwin*")
+$IsOSLinux   = -not $IsOSWindows -and -not $IsOSMac
+$PlatformKey = if ($IsOSWindows) { "windows" } else { "posix" }
+
+# Ingest the Single Source of Truth (config/env/*.toml modules)
+$EnvConfigDir = Join-Path $ProjectRoot "config\env"
+if (-not (Test-Path -LiteralPath $EnvConfigDir -PathType Container)) {
+    throw "[ClauseOS] Critical: Modular environment directory missing at $EnvConfigDir"
 }
 
-Get-Content -Path $DotEnvPath | ForEach-Object {
-    $line = $_.Trim()
-    if ($line -and -not ($line.StartsWith("#")) -and ($line -match '^([^=]+)=(.*)$')) {
-        $key = $matches[1].Trim()
-        $val = $matches[2].Trim().Trim('"').Trim("'")
-        [Environment]::SetEnvironmentVariable($key, $val, 'Process')
+$TomlModules = Get-ChildItem -Path $EnvConfigDir -Filter "*.toml" | Sort-Object Name
+if (-not $TomlModules -or $TomlModules.Count -eq 0) {
+    throw "[ClauseOS] Critical: No TOML environment modules found in $EnvConfigDir"
+}
+
+$RawAnchors   = [ordered]@{}
+$RawEnv       = [ordered]@{}
+$RawProvision = [ordered]@{}
+
+# Pass 1: Ingest raw key/value definitions for the active platform only
+foreach ($Module in $TomlModules) {
+    $CurrentSection = ""
+
+    foreach ($RawLine in [System.IO.File]::ReadAllLines($Module.FullName)) {
+        $Line = $RawLine.Trim()
+
+        if ([string]::IsNullOrWhiteSpace($Line) -or $Line.StartsWith('#')) {
+            continue
+        }
+
+        if ($Line -match '^\[([a-zA-Z0-9_.-]+)\]$') {
+            $CurrentSection = $Matches[1]
+            continue
+        }
+
+        $EqIdx = $Line.IndexOf('=')
+        if ($EqIdx -lt 1) { continue }
+
+        $Key = $Line.Substring(0, $EqIdx).Trim()
+        $Val = $Line.Substring($EqIdx + 1).Trim()
+
+        if (($Val.StartsWith('"') -and $Val.EndsWith('"') -and $Val.Length -ge 2) -or
+            ($Val.StartsWith("'") -and $Val.EndsWith("'") -and $Val.Length -ge 2)) {
+            $Val = $Val.Substring(1, $Val.Length - 2)
+        } else {
+            $Val = ($Val -replace '\s+#.*$', '').Trim()
+        }
+
+        if ($CurrentSection -eq "anchors.$PlatformKey") {
+            $RawAnchors[$Key] = $Val
+        } elseif ($CurrentSection -eq "env" -or $CurrentSection -eq "env.$PlatformKey") {
+            $RawEnv[$Key] = $Val
+        } elseif ($CurrentSection -eq "provision" -or $CurrentSection -eq "provision.$PlatformKey") {
+            $RawProvision[$Key] = $Val
+        }
+    }
+}
+
+function Normalize-ClausePath {
+    param([string]$Value)
+
+    if ([string]::IsNullOrEmpty($Value)) {
+        return $Value
+    }
+
+    # Skip URLs
+    if ($Value -match '^[a-zA-Z][a-zA-Z0-9+.-]*://') {
+        return $Value
+    }
+
+    # Already rooted (POSIX /..., Windows C:\... or C:/..., UNC \\...)
+    if ($Value.StartsWith('/') -or $Value.StartsWith('\') -or ($Value -match '^[a-zA-Z]:')) {
+        if ($IsOSWindows -and $Value.StartsWith($ProjectRoot)) {
+            return ($Value -replace '/', '\')
+        }
+        return $Value
+    }
+
+    # Resolve any relative path containing '/' or '\', plus root dotfiles (.home, .clause.toml)
+    if ($Value.Contains('/') -or $Value.Contains('\') -or
+        ($Value -match '^\.[a-zA-Z0-9_.-]+$' -and $Value -ne ".")) {
+        $Rel = if ($IsOSWindows) { $Value -replace '/', '\' } else { $Value }
+        return (Join-Path $ProjectRoot $Rel)
+    }
+
+    return $Value
+}
+
+function Expand-ClauseSymbolTable {
+    param(
+        [System.Collections.IDictionary]$TargetTable,
+        [System.Collections.IDictionary[]]$LookupTables
+    )
+
+    for ($Pass = 0; $Pass -lt 8; $Pass++) {
+        $Changed = $false
+        $Keys = @($TargetTable.Keys)
+
+        foreach ($K in $Keys) {
+            $CurrentVal = $TargetTable[$K]
+            if ([string]::IsNullOrEmpty($CurrentVal) -or ($CurrentVal -notlike '*${*}*')) {
+                continue
+            }
+
+            $NextVal = [regex]::Replace($CurrentVal, '\$\{([a-zA-Z_][a-zA-Z0-9_]*)\}', {
+                param($Match)
+                $RefName = $Match.Groups[1].Value
+
+                foreach ($Table in $LookupTables) {
+                    if ($Table.Contains($RefName)) {
+                        return $Table[$RefName]
+                    }
+                }
+
+                $ProcVal = [Environment]::GetEnvironmentVariable($RefName, 'Process')
+                if ($null -ne $ProcVal) {
+                    return $ProcVal
+                }
+
+                return $Match.Value
+            })
+
+            if ($NextVal -ne $CurrentVal) {
+                $TargetTable[$K] = $NextVal
+                $Changed = $true
+            }
+        }
+
+        if (-not $Changed) { break }
+    }
+}
+
+# Pass 2: Resolve anchors first, then env, then provision targets
+Expand-ClauseSymbolTable -TargetTable $RawAnchors -LookupTables @($RawAnchors)
+foreach ($K in @($RawAnchors.Keys)) {
+    $RawAnchors[$K] = Normalize-ClausePath -Value $RawAnchors[$K]
+}
+
+Expand-ClauseSymbolTable -TargetTable $RawEnv -LookupTables @($RawAnchors, $RawEnv)
+foreach ($K in @($RawEnv.Keys)) {
+    $Resolved = Normalize-ClausePath -Value $RawEnv[$K]
+    $RawEnv[$K] = $Resolved
+    [Environment]::SetEnvironmentVariable($K, $Resolved, 'Process')
+}
+
+Expand-ClauseSymbolTable -TargetTable $RawProvision -LookupTables @($RawAnchors, $RawEnv, $RawProvision)
+foreach ($K in @($RawProvision.Keys)) {
+    $DirPath = Normalize-ClausePath -Value $RawProvision[$K]
+    if ($DirPath -and -not (Test-Path -LiteralPath $DirPath)) {
+        New-Item -ItemType Directory -Force -Path $DirPath | Out-Null
     }
 }
 
 # 2. Confinement Anchors
-$ClauseHome = Join-Path $ProjectRoot $(if ($env:CLAUSE_HOME) { $env:CLAUSE_HOME } else { ".home" })
-$env:CLAUSE_HOME = $ClauseHome
-$env:HOME        = $ClauseHome
-$env:USERPROFILE = $ClauseHome
+$ClauseHome = $env:CLAUSE_HOME
 
-# 3. Platform Hierarchy
-$IsOSWindows = $IsWindows -or $env:OS -eq "Windows_NT"
-$IsOSMac     = $IsMacOS -or ($PSVersionTable.OS -like "*Darwin*")
-$IsOSLinux   = -not $IsOSWindows -and -not $IsOSMac
-
+# 3. Platform Hierarchy (Windows NT dynamic drive/path fallback)
 if ($IsOSWindows) {
-    # 1. Clean up POSIX XDG variables so Windows runtimes (like Nushell) don't trip
-    @(
-        'XDG_CONFIG_HOME',
-        'XDG_DATA_HOME',
-        'XDG_STATE_HOME',
-        'XDG_CACHE_HOME',
-        'POSIX_CLAUSE_BIN_DIR',
-        'POSIX_CLAUSE_APPS_DIR',
-        'POSIX_CLAUSE_LOGS_DIR'
-    ) | ForEach-Object {
-        [Environment]::SetEnvironmentVariable($_, $null, 'Process')
-    }
-    
-    # Windows Native NT Layout inside .home
-    $WinLocal   = Join-Path $ProjectRoot $env:WIN_LOCALAPPDATA
-    $WinRoaming = Join-Path $ProjectRoot $env:WIN_APPDATA
-
-    $env:LOCALAPPDATA = $WinLocal
-    $env:APPDATA      = $WinRoaming
-
-    $env:CLAUSE_BIN_DIR   = Join-Path $ProjectRoot $env:WIN_CLAUSE_BIN_DIR
-    $env:CLAUSE_APPS_DIR  = Join-Path $ProjectRoot $env:WIN_CLAUSE_APPS_DIR
-    $env:CLAUSE_CACHE_DIR = Join-Path $ProjectRoot $env:WIN_CLAUSE_CACHE_DIR
-    $env:CLAUSE_TEMP_DIR  = Join-Path $ProjectRoot $env:WIN_CLAUSE_TEMP_DIR
-    $env:CLAUSE_LOGS_DIR  = Join-Path $ProjectRoot $env:WIN_CLAUSE_LOGS_DIR
-
-    # --------------------------------------------------------------------------
-    # HERMETIC NT HOME & SCRATCH ISOLATION (From .env definitions)
-    # --------------------------------------------------------------------------
-    $env:TEMP = Join-Path $ProjectRoot $env:WIN_TEMP
-    $env:TMP  = Join-Path $ProjectRoot $env:WIN_TMP
-
-    # Resolve HOMEDRIVE & HOMEPATH (use .env override if provided, else compute)
-    if ($env:WIN_HOMEDRIVE -and $env:WIN_HOMEPATH) {
-        $env:HOMEDRIVE = $env:WIN_HOMEDRIVE
-        $env:HOMEPATH  = $env:WIN_HOMEPATH
-    } else {
+    # Resolve HOMEDRIVE & HOMEPATH (use TOML override if provided, else compute)
+    if (-not ($env:HOMEDRIVE -and $env:HOMEPATH)) {
         $HomePathSplit = [System.IO.Path]::GetPathRoot($ClauseHome)
         $env:HOMEDRIVE = $HomePathSplit.TrimEnd('\')
         $env:HOMEPATH  = $ClauseHome.Substring($HomePathSplit.Length - 1)
     }
 
-    # Mise paths on Windows
-    $env:MISE_DATA_DIR   = Join-Path $WinLocal "mise"
-    $env:MISE_CONFIG_DIR = Join-Path $WinRoaming "mise"
-    $env:MISE_STATE_DIR  = Join-Path $WinLocal "mise\state"
-    $env:MISE_CACHE_DIR  = Join-Path $WinLocal "mise\cache"
-    $env:MISE_LOG_FILE   = Join-Path $WinLocal "mise\logs\mise.log"
-    $env:GH_CONFIG_DIR   = Join-Path $WinRoaming "GitHub CLI"
-
     # Ensure hermetic AppData trees exist so nu and cosign/TUF never hit missing dirs
-    @($WinRoaming, $WinLocal) | ForEach-Object {
-        if (-not (Test-Path $_)) { New-Item -ItemType Directory -Force -Path $_ | Out-Null }
-    }
-} else {
-    @(
-        'WIN_LOCALAPPDATA',
-        'WIN_APPDATA',
-        'WIN_CLAUSE_BIN_DIR',
-        'WIN_CLAUSE_APPS_DIR',
-        'WIN_CLAUSE_LOGS_DIR',
-        'WIN_CLAUSE_TEMP_DIR',
-        'WIN_CLAUSE_CACHE_DIR',
-        'WIN_TEMP',
-        'WIN_TMP',
-        'WIN_HOMEDRIVE',
-        'WIN_HOMEPATH'
-    ) | ForEach-Object {
-        Remove-Item "Env:$_" -ErrorAction SilentlyContinue
-    }
-    
-    # POSIX XDG Standards inside .home
-    $env:XDG_CONFIG_HOME = Join-Path $ProjectRoot $env:XDG_CONFIG_HOME
-    $env:XDG_DATA_HOME   = Join-Path $ProjectRoot $env:XDG_DATA_HOME
-    $env:XDG_STATE_HOME  = Join-Path $ProjectRoot $env:XDG_STATE_HOME
-    $env:XDG_CACHE_HOME  = Join-Path $ProjectRoot $env:XDG_CACHE_HOME
-
-    $env:CLAUSE_BIN_DIR   = Join-Path $ProjectRoot $env:POSIX_CLAUSE_BIN_DIR
-    $env:CLAUSE_APPS_DIR  = Join-Path $ProjectRoot $env:POSIX_CLAUSE_APPS_DIR
-    $env:CLAUSE_CACHE_DIR = $env:XDG_CACHE_HOME
-    $env:CLAUSE_TEMP_DIR  = Join-Path $env:XDG_CACHE_HOME "tmp_bootstrap"
-    $env:CLAUSE_LOGS_DIR  = Join-Path $ProjectRoot $env:POSIX_CLAUSE_LOGS_DIR
-
-    # Mise paths on POSIX
-    $env:MISE_DATA_DIR   = Join-Path $env:XDG_DATA_HOME "mise"
-    $env:MISE_CONFIG_DIR = Join-Path $env:XDG_CONFIG_HOME "mise"
-    $env:MISE_STATE_DIR  = Join-Path $env:XDG_STATE_HOME "mise"
-    $env:MISE_CACHE_DIR  = Join-Path $env:XDG_CACHE_HOME "mise"
-    $env:MISE_LOG_FILE   = Join-Path $env:XDG_STATE_HOME "mise\logs\mise.log"
-    $env:GH_CONFIG_DIR   = Join-Path $env:XDG_CONFIG_HOME "gh"
-}
-
-# 4. Invariant Directories & Hermetic SSH Containment
-$SshDir = Join-Path $ClauseHome ".ssh"
-@( $env:CLAUSE_CACHE_DIR, $env:CLAUSE_BIN_DIR, $SshDir ) | ForEach-Object {
-    if (-not (Test-Path $_)) {
+    @($env:APPDATA, $env:LOCALAPPDATA) | Where-Object { $_ -and -not (Test-Path $_) } | ForEach-Object {
         New-Item -ItemType Directory -Force -Path $_ | Out-Null
     }
 }
 
-$SshConfig  = Join-Path $SshDir "config"
-$KnownHosts = Join-Path $SshDir "known_hosts"
-
-# Format with forward slashes for OpenSSH argument parsing
-$SshConfigFwd  = $SshConfig.Replace('\', '/')
-$KnownHostsFwd = $KnownHosts.Replace('\', '/')
-
-if (Test-Path $SshConfig) {
-    $env:GIT_SSH_COMMAND = "ssh -F '$SshConfigFwd' -o UserKnownHostsFile='$KnownHostsFwd'"
-} else {
-    $KeyEd  = (Join-Path $SshDir "id_ed25519").Replace('\', '/')
-    $KeyRsa = (Join-Path $SshDir "id_rsa").Replace('\', '/')
-    $env:GIT_SSH_COMMAND = "ssh -i '$KeyEd' -i '$KeyRsa' -o UserKnownHostsFile='$KnownHostsFwd'"
+# 4. Invariant Directories & Hermetic SSH Containment
+$SshDir = $env:CLAUSE_SSH_DIR
+@( $env:CLAUSE_CACHE_DIR, $env:CLAUSE_BIN_DIR, $SshDir ) | Where-Object { $_ -and -not (Test-Path $_) } | ForEach-Object {
+    New-Item -ItemType Directory -Force -Path $_ | Out-Null
 }
 
-# 5. Identity & Tool Routing
-$env:GIT_CONFIG_GLOBAL = Join-Path $ProjectRoot $env:GIT_CONFIG_GLOBAL
-$env:NU_CONFIG_DIR     = Join-Path $ProjectRoot $env:NU_CONFIG_DIR
-$env:PULUMI_HOME       = Join-Path $ProjectRoot $env:PULUMI_HOME
+$SshConfig  = $env:CLAUSE_SSH_CONFIG
+$KnownHosts = $env:CLAUSE_SSH_KNOWN_HOSTS
+
+# Format with forward slashes for OpenSSH argument parsing
+if ($SshConfig -and $KnownHosts) {
+    $SshConfigFwd  = $SshConfig.Replace('\', '/')
+    $KnownHostsFwd = $KnownHosts.Replace('\', '/')
+
+    if (Test-Path $SshConfig) {
+        $env:GIT_SSH_COMMAND = "ssh -F '$SshConfigFwd' -o UserKnownHostsFile='$KnownHostsFwd'"
+    } else {
+        $KeyEd  = $env:CLAUSE_SSH_KEY_ED25519.Replace('\', '/')
+        $KeyRsa = $env:CLAUSE_SSH_KEY_RSA.Replace('\', '/')
+        $env:GIT_SSH_COMMAND = "ssh -i '$KeyEd' -i '$KeyRsa' -o UserKnownHostsFile='$KnownHostsFwd'"
+    }
+}
 
 # 6. Global PATH Management (Prepend Stage 0 Binaries Only)
 if ($env:PATH -notlike "*$($env:CLAUSE_BIN_DIR)*") {
@@ -171,7 +219,7 @@ if ($env:PATH -notlike "*$($env:CLAUSE_BIN_DIR)*") {
 # LOGGING SYSTEM INITIALIZATION
 # ==============================================================================
 $LogDir  = $env:CLAUSE_LOGS_DIR
-$LogFile = Join-Path $LogDir "bootstrap.log"
+$LogFile = $env:CLAUSE_BOOTSTRAP_LOG
 
 if (-not (Test-Path $LogDir)) {
     New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
@@ -210,7 +258,7 @@ Write-ClauseLog "Context: Root=$ProjectRoot | Home=$env:CLAUSE_HOME | OS(Windows
 $LocalBin    = $env:CLAUSE_BIN_DIR
 $AppDir      = $env:CLAUSE_APPS_DIR
 $TmpDir      = $env:CLAUSE_TEMP_DIR
-$Manifest    = Join-Path $ProjectRoot ".clause.toml"
+$Manifest    = $env:CLAUSE_MANIFEST
 $NuConfigDir = $env:NU_CONFIG_DIR
 
 if (-not (Test-Path $Manifest)) {
@@ -298,9 +346,9 @@ try {
 # ==============================================================================
 # MODULAR RECIPE DISCOVERY & EXECUTION (STAGE 0 & STAGE 1)
 # ==============================================================================
-$InstallerDir = Join-Path $ProjectRoot $env:WIN_INSTALLERS_DIR
+$InstallerDir = $env:INSTALLERS_DIR
 
-if (Test-Path $InstallerDir) {
+if ($InstallerDir -and (Test-Path $InstallerDir)) {
     # Scan for recipes matching: installer_<key>.ps1 or <order>_installer_<key>.ps1
     $Recipes = Get-ChildItem -Path $InstallerDir -Filter "installer_*.ps1" | Sort-Object Name
 
@@ -313,8 +361,8 @@ if (Test-Path $InstallerDir) {
         # Read the pinned version from .clause.toml
         $Version = Get-TomlValue -Content $TomlContent -Key $ToolKey
         if (-not $Version) {
-            Write-ClauseLog "Missing required version definition for '$ToolKey' in .clause.toml" -Level FATAL
-            throw "[ClauseOS] Error: Missing required version definition for '$ToolKey' in .clause.toml"
+            Write-ClauseLog "Missing required version definition for '$ToolKey' in $Manifest" -Level FATAL
+            throw "[ClauseOS] Error: Missing required version definition for '$ToolKey' in $Manifest"
         }
 
         Write-ClauseLog "Executing recipe '$($Recipe.Name)' for '$ToolKey' ($Version)..." -Level DEBUG
@@ -359,7 +407,7 @@ if ($IsOSWindows) {
 # ==============================================================================
 # GENERATE NUSHELL MISE ACTIVATION OVERLAY
 # ==============================================================================
-$MiseNu = Join-Path $NuConfigDir "mise.nu"
+$MiseNu  = $env:CLAUSE_MISE_NU
 $ExeExt  = if ($IsOSWindows) { ".exe" } else { "" }
 $MiseBin = Join-Path $LocalBin "mise$ExeExt"
 $NuBin   = Join-Path $LocalBin "nu$ExeExt"
@@ -384,20 +432,18 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 # Ensure Mise shims/binaries are present in current session PATH
-$MiseShimRel = if ($IsOSWindows) { "AppData\Local\mise\shims" } else { ".local/share/mise/shims" }
-$MiseShims   = Join-Path $env:CLAUSE_HOME $MiseShimRel
+$MiseShims = $env:MISE_SHIMS_DIR
 
-if (Test-Path $MiseShims) {
+if ($MiseShims -and (Test-Path $MiseShims)) {
     $PathSep = if ($IsOSWindows) { ";" } else { ":" }
     $env:PATH = "$MiseShims$PathSep$env:PATH"
 }
 
 # --- Direct Filesystem Probe for Engine Directories ---
-$RequiredTools = @("comfyui", "lemonade", "code", "fastflowlm", "unsloth")
+$RequiredTools = ($env:CLAUSE_REQUIRED_ENGINES -split '\s+') | Where-Object { $_ }
 $MissingTools  = @()
 
-$InstallsRel       = if ($IsOSWindows) { "AppData\Local\mise\installs" } else { ".local/share/mise/installs" }
-$MiseInstallsBase  = Join-Path $env:CLAUSE_HOME $InstallsRel
+$MiseInstallsBase = $env:MISE_INSTALLS_DIR
 
 Write-ClauseLog "Probing tool installations at: $MiseInstallsBase" -Level DEBUG
 
@@ -435,7 +481,6 @@ if ($MissingTools.Count -gt 0) {
 if ($IsOSWindows) {
     Write-ClauseLog "Checking Rebar3 Windows launcher configuration..." -Level DEBUG
     
-    $MiseInstallsBase = Join-Path $env:CLAUSE_HOME "AppData\Local\mise\installs"
     $Rebar3Dir = Join-Path $MiseInstallsBase "rebar"
 
     if (Test-Path $Rebar3Dir) {
@@ -483,8 +528,8 @@ escript "%~dp0rebar3" %*
 # ==============================================================================
 Set-Location -Path $ProjectRoot
 
-$EnvNu    = Join-Path $ProjectRoot "scripts/cli/nu/core/boot.nu"
-$ConfigNu = Join-Path $NuConfigDir "config.nu"
+$EnvNu    = $env:CLAUSE_BOOT_NU
+$ConfigNu = $env:CLAUSE_CONFIG_NU
 $IsNonInteractive = [Console]::IsInputRedirected -or $env:CI -eq "true"
 
 Write-ClauseLog "Performing Nushell handoff (Interactive=$(-not $IsNonInteractive))..." -Level INFO
