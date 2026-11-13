@@ -24,7 +24,6 @@ CLAUSE_TEMP_DIR   = ".home/AppData/Local/Temp"
 [env]
 # [optional] Runtime logging & diagnostics (trace | debug | info | warn | error)
 USER_LOG_LEVEL       = ""
-MISE_LOG_FILE_LEVEL  = ""
 
 # Hermetic base confinement
 CLAUSE_HOME          = "${CLAUSE_HOME}"
@@ -36,6 +35,8 @@ CLAUSE_MANIFEST      = ".clause.toml"
 CLAUSE_BOOTSTRAP_LOG = "${CLAUSE_LOGS_DIR}/bootstrap.log"
 
 [env.posix]
+MISE_LOG_FILE_LEVEL = "trace"
+
 XDG_DATA_HOME    = "${CLAUSE_DATA_DIR}"
 XDG_CACHE_HOME   = "${CLAUSE_CACHE_DIR}"
 XDG_STATE_HOME   = "${CLAUSE_STATE_DIR}"
@@ -49,6 +50,8 @@ CLAUSE_TEMP_DIR  = "${CLAUSE_TEMP_DIR}"
 INSTALLERS_DIR   = "scripts/cli/posix/installers"
 
 [env.windows]
+MISE_LOG_FILE_LEVEL = ""
+
 LOCALAPPDATA     = "${CLAUSE_DATA_DIR}"
 APPDATA          = "${CLAUSE_HOME}/AppData/Roaming"
 
