@@ -1,0 +1,12 @@
+# ==============================================================================
+# [restricted] 30-SHELL: NUSHELL CONTROL PLANE & RUNTIME ISOLATION
+# Anchors Nushell config to tracked repo scripts while confining mutable
+# libraries and compiled plugins inside .home.
+# WARNING: Changing these breaks sandboxing invariants
+# ==============================================================================
+
+[env]
+NU_CONFIG_DIR  = "scripts/cli/nu/config"
+NU_LIB_DIRS    = "${CLAUSE_CONFIG_DIR}/nushell/scripts"
+NU_PLUGIN_DIRS = "${CLAUSE_DATA_DIR}/nushell/plugins"
+NU_LOG_LEVEL   = "warn"
