@@ -6,10 +6,10 @@
 # ==============================================================================
 
 [env]
-HF_HOME                  = "${CLAUSE_CACHE_DIR}/huggingface"
-HF_HUB_CACHE             = "${HF_HOME}/hub"
-HF_ASSETS_CACHE          = "${HF_HOME}/assets"
-HF_HUB_DISABLE_TELEMETRY = "1"
-HF_HUB_ENABLE_HF_TRANSFER = "1"
+HF_HOME                      = "${CLAUSE_CACHE_DIR}/huggingface"
+HF_HUB_CACHE                 = "${HF_HOME}/hub"
+HF_ASSETS_CACHE              = "${HF_HOME}/assets"
+HF_HUB_DISABLE_TELEMETRY     = "1"
+HF_HUB_ENABLE_HF_TRANSFER    = "1"
 HF_HUB_DISABLE_PROGRESS_BARS = "0"
-DO_NOT_TRACK             = "1"
+DO_NOT_TRACK                 = "1"
