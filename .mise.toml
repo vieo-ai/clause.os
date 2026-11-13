@@ -65,6 +65,9 @@ comfyui = "v0.43.0"
 # Local developer utilities, editors, or helper tools that don't deploy to production.
 code = "1.144.1"
 
+[bootstrap.packages]
+"brew:lima" = "latest"
+
 [settings]
 auto_install = false
 experimental = false
