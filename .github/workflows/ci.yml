@@ -8,9 +8,9 @@ on:
       - 'scripts/**'
       - 'tests/**'
       - '.config/**'
+      - 'config/**'
       - '.clause.toml'
       - '.mise.toml'
-      - '.env.example'
       - 'cx.ps1'
       - 'cx.sh'
       - 'cx.bat'
@@ -23,9 +23,9 @@ on:
       - 'scripts/**'
       - 'tests/**'
       - '.config/**'
+      - 'config/**'
       - '.clause.toml'
       - '.mise.toml'
-      - '.env.example'
       - 'cx.ps1'
       - 'cx.sh'
       - 'cx.bat'
@@ -93,16 +93,6 @@ jobs:
           git config --global core.fileMode false
           git config --global core.symlinks true
           git config --global url."https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf "https://github.com/"
-
-      # --- Hermetic Environment Configuration Seeding ---
-      - name: Bootstrap Environment Configuration (POSIX)
-        if: runner.os != 'Windows'
-        run: cp .env.example .env
-
-      - name: Bootstrap Environment Configuration (Windows)
-        if: runner.os == 'Windows'
-        shell: powershell
-        run: Copy-Item .env.example .env
 
       # --- POSIX Test & Systems Assertion Suite (Linux & macOS) ---
       - name: Test ClauseOS Stage 0 Boot & Assertion Suite (POSIX)
