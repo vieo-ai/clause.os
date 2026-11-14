@@ -13,6 +13,7 @@ $ErrorActionPreference = 'Stop'
 # 1. Base Anchors
 $ProjectRoot = if ($env:CLAUSE_PROJECT_ROOT) { $env:CLAUSE_PROJECT_ROOT } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
 $env:CLAUSE_PROJECT_ROOT = $ProjectRoot
+$CallerMiseEnv = $env:MISE_ENV
 
 $IsOSWindows = $IsWindows -or $env:OS -eq "Windows_NT"
 $IsOSMac     = $IsMacOS -or ($PSVersionTable.OS -like "*Darwin*")
@@ -160,6 +161,11 @@ foreach ($K in @($RawEnv.Keys)) {
     [Environment]::SetEnvironmentVariable($K, $Resolved, 'Process')
 }
 
+# Preserve explicit caller MISE_ENV override if supplied
+if (-not [string]::IsNullOrWhiteSpace($CallerMiseEnv)) {
+    $env:MISE_ENV = $CallerMiseEnv
+}
+
 Expand-ClauseSymbolTable -TargetTable $RawProvision -LookupTables @($RawAnchors, $RawEnv, $RawProvision)
 foreach ($K in @($RawProvision.Keys)) {
     $DirPath = Normalize-ClausePath -Value $RawProvision[$K]
@@ -257,7 +263,7 @@ function Write-ClauseLog {
 }
 
 Write-ClauseLog "Initializing ClauseOS Microkernel Bootloader..." -Level INFO
-Write-ClauseLog "Context: Root=$ProjectRoot | Home=$env:CLAUSE_HOME | OS(Windows=$IsOSWindows, Linux=$IsOSLinux, Mac=$IsOSMac)" -Level DEBUG
+Write-ClauseLog "Context: Root=$ProjectRoot | Home=$env:CLAUSE_HOME | Profile=$($env:MISE_ENV) | OS(Windows=$IsOSWindows, Linux=$IsOSLinux, Mac=$IsOSMac)" -Level DEBUG
 
 # ==============================================================================
 # TARGET DIRECTORY PROVISIONING
@@ -431,24 +437,27 @@ if ((Test-Path $MiseBin) -and (Test-Path $NuBin)) {
 # ==============================================================================
 # STAGE 2: TOOLCHAIN INSTALLATION & HEALTH VERIFICATION (MISE)
 # ==============================================================================
-Write-ClauseLog "Finalizing ClauseOS toolchain installation..." -Level INFO
+Write-ClauseLog "Finalizing ClauseOS toolchain installation (MISE_ENV=$($env:MISE_ENV))..." -Level INFO
 & $MiseBin install --yes
 if ($LASTEXITCODE -ne 0) {
     Write-ClauseLog "Mise installation failed with exit code $LASTEXITCODE" -Level FATAL
     exit $LASTEXITCODE
 }
 
-# Bootstrap POSIX system packages (Lima via Mise brew manager)
+# Bootstrap POSIX system packages (Lima via Mise brew manager) only when declared in active MISE_ENV
 if (-not $IsOSWindows) {
-    $BrewLimaBin = if ($env:HOMEBREW_PREFIX) { Join-Path $env:HOMEBREW_PREFIX "bin/limactl" } else { $null }
-    $HasLima = ($BrewLimaBin -and (Test-Path $BrewLimaBin)) -or (Get-Command "limactl" -ErrorAction SilentlyContinue)
+    $BrewStatus = (& $MiseBin bootstrap packages status --manager brew 2>$null | Out-String).Trim()
+    if (-not [string]::IsNullOrWhiteSpace($BrewStatus)) {
+        $BrewLimaBin = if ($env:HOMEBREW_PREFIX) { Join-Path $env:HOMEBREW_PREFIX "bin/limactl" } else { $null }
+        $HasLima = ($BrewLimaBin -and (Test-Path $BrewLimaBin)) -or (Get-Command "limactl" -ErrorAction SilentlyContinue)
 
-    if (-not $HasLima) {
-        Write-ClauseLog "Lima not detected; bootstrapping via Mise brew package manager..." -Level INFO
-        & $MiseBin bootstrap packages apply --manager brew
-        if ($LASTEXITCODE -ne 0) {
-            Write-ClauseLog "Mise brew package bootstrap failed with exit code $LASTEXITCODE" -Level FATAL
-            exit $LASTEXITCODE
+        if (-not $HasLima) {
+            Write-ClauseLog "Lima not detected; bootstrapping via Mise brew package manager..." -Level INFO
+            & $MiseBin bootstrap packages apply --manager brew
+            if ($LASTEXITCODE -ne 0) {
+                Write-ClauseLog "Mise brew package bootstrap failed with exit code $LASTEXITCODE" -Level FATAL
+                exit $LASTEXITCODE
+            }
         }
     }
 }
@@ -461,8 +470,49 @@ if ($MiseShims -and (Test-Path $MiseShims)) {
     $env:PATH = "$MiseShims$PathSep$env:PATH"
 }
 
-# --- Direct Filesystem Probe for Engine Directories ---
-$RequiredTools = ($env:CLAUSE_REQUIRED_ENGINES -split '\s+') | Where-Object { $_ }
+# --- Direct Filesystem Probe for Plugin Engine Directories ---
+# Custom [plugins] repos are cloned on the first `mise install` pass on Windows;
+# dynamically discover active [plugins] keys so a second pass completes their tool installs.
+$ActiveManifests = [System.Collections.Generic.List[string]]::new()
+$ActiveManifests.Add((Join-Path $ProjectRoot ".mise.toml"))
+if (-not [string]::IsNullOrWhiteSpace($env:MISE_ENV)) {
+    foreach ($EnvName in ($env:MISE_ENV -split ',')) {
+        $Trimmed = $EnvName.Trim()
+        if ($Trimmed) {
+            $ActiveManifests.Add((Join-Path $ProjectRoot ".mise.$Trimmed.toml"))
+            $ActiveManifests.Add((Join-Path $ProjectRoot ".mise.$Trimmed.local.toml"))
+        }
+    }
+}
+$ActiveManifests.Add((Join-Path $ProjectRoot ".mise.local.toml"))
+
+$DiscoveredPlugins = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+$HasAnyManifest    = $false
+foreach ($ManifestPath in $ActiveManifests) {
+    if (-not (Test-Path -LiteralPath $ManifestPath -PathType Leaf)) { continue }
+    $HasAnyManifest   = $true
+    $InPluginsSection = $false
+    foreach ($RawLine in [System.IO.File]::ReadAllLines($ManifestPath)) {
+        $Line = $RawLine.Trim()
+        if ([string]::IsNullOrWhiteSpace($Line) -or $Line.StartsWith('#')) { continue }
+        if ($Line -match '^\[([a-zA-Z0-9_.-]+)\]$') {
+            $InPluginsSection = ($Matches[1] -eq 'plugins')
+            continue
+        }
+        if ($InPluginsSection -and $Line.IndexOf('=') -gt 0) {
+            $PluginKey = $Line.Substring(0, $Line.IndexOf('=')).Trim().Trim('"', "'")
+            if (-not [string]::IsNullOrWhiteSpace($PluginKey)) {
+                [void]$DiscoveredPlugins.Add($PluginKey)
+            }
+        }
+    }
+}
+
+$RequiredTools = if ($HasAnyManifest) {
+    @($DiscoveredPlugins)
+} else {
+    ($env:CLAUSE_REQUIRED_ENGINES -split '\s+') | Where-Object { $_ }
+}
 $MissingTools  = @()
 
 $MiseInstallsBase = $env:MISE_INSTALLS_DIR
