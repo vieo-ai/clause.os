@@ -444,30 +444,19 @@ if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
-# Bootstrap POSIX system packages (Lima via Mise brew manager) only when declared in active MISE_ENV
+# Bootstrap POSIX system packages (Lima via Mise brew manager)
 if (-not $IsOSWindows) {
-    $BrewStatus = (& $MiseBin bootstrap packages status --manager brew 2>$null | Out-String).Trim()
-    if (-not [string]::IsNullOrWhiteSpace($BrewStatus)) {
-        $BrewLimaBin = if ($env:HOMEBREW_PREFIX) { Join-Path $env:HOMEBREW_PREFIX "bin/limactl" } else { $null }
-        $HasLima = ($BrewLimaBin -and (Test-Path $BrewLimaBin)) -or (Get-Command "limactl" -ErrorAction SilentlyContinue)
+    $BrewLimaBin = if ($env:HOMEBREW_PREFIX) { Join-Path $env:HOMEBREW_PREFIX "bin/limactl" } else { $null }
+    $HasLima = ($BrewLimaBin -and (Test-Path $BrewLimaBin)) -or (Get-Command "limactl" -ErrorAction SilentlyContinue)
 
-        if (-not $HasLima) {
-            Write-ClauseLog "Lima not detected; bootstrapping via Mise brew package manager..." -Level INFO
-            & $MiseBin bootstrap packages apply --manager brew
-            if ($LASTEXITCODE -ne 0) {
-                Write-ClauseLog "Mise brew package bootstrap failed with exit code $LASTEXITCODE" -Level FATAL
-                exit $LASTEXITCODE
-            }
+    if (-not $HasLima) {
+        Write-ClauseLog "Lima not detected; bootstrapping via Mise brew package manager..." -Level INFO
+        & $MiseBin bootstrap packages apply --manager brew
+        if ($LASTEXITCODE -ne 0) {
+            Write-ClauseLog "Mise brew package bootstrap failed with exit code $LASTEXITCODE" -Level FATAL
+            exit $LASTEXITCODE
         }
     }
-}
-
-# Ensure Mise shims/binaries are present in current session PATH
-$MiseShims = $env:MISE_SHIMS_DIR
-
-if ($MiseShims -and (Test-Path $MiseShims)) {
-    $PathSep = if ($IsOSWindows) { ";" } else { ":" }
-    $env:PATH = "$MiseShims$PathSep$env:PATH"
 }
 
 # --- Direct Filesystem Probe for Plugin Engine Directories ---
