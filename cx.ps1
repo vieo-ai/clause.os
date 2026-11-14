@@ -215,6 +215,13 @@ if ($env:PATH -notlike "*$($env:CLAUSE_BIN_DIR)*") {
     $env:PATH = "$($env:CLAUSE_BIN_DIR)$PathSep$env:PATH"
 }
 
+if (-not $IsOSWindows -and $env:HOMEBREW_PREFIX) {
+    $BrewBin = Join-Path $env:HOMEBREW_PREFIX "bin"
+    if ($env:PATH -notlike "*$BrewBin*") {
+        $env:PATH = "$BrewBin`:$env:PATH"
+    }
+}
+
 # ==============================================================================
 # LOGGING SYSTEM INITIALIZATION
 # ==============================================================================
@@ -429,6 +436,21 @@ Write-ClauseLog "Finalizing ClauseOS toolchain installation..." -Level INFO
 if ($LASTEXITCODE -ne 0) {
     Write-ClauseLog "Mise installation failed with exit code $LASTEXITCODE" -Level FATAL
     exit $LASTEXITCODE
+}
+
+# Bootstrap POSIX system packages (Lima via Mise brew manager)
+if (-not $IsOSWindows) {
+    $BrewLimaBin = if ($env:HOMEBREW_PREFIX) { Join-Path $env:HOMEBREW_PREFIX "bin/limactl" } else { $null }
+    $HasLima = ($BrewLimaBin -and (Test-Path $BrewLimaBin)) -or (Get-Command "limactl" -ErrorAction SilentlyContinue)
+
+    if (-not $HasLima) {
+        Write-ClauseLog "Lima not detected; bootstrapping via Mise brew package manager..." -Level INFO
+        & $MiseBin bootstrap packages apply --manager brew
+        if ($LASTEXITCODE -ne 0) {
+            Write-ClauseLog "Mise brew package bootstrap failed with exit code $LASTEXITCODE" -Level FATAL
+            exit $LASTEXITCODE
+        }
+    }
 }
 
 # Ensure Mise shims/binaries are present in current session PATH
