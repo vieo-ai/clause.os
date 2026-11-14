@@ -13,11 +13,12 @@ MISE_LOG_FILE               = "${CLAUSE_LOGS_DIR}/mise.log"
 MISE_SHIMS_DIR              = "${MISE_DATA_DIR}/shims"
 MISE_INSTALLS_DIR           = "${MISE_DATA_DIR}/installs"
 
+MISE_ENV                    = "cloud,ai"
 MISE_YES                    = "1"
 MISE_NOT_FOUND_AUTO_INSTALL = "0"
 MISE_EXPERIMENTAL           = "0"
 
-# Space-delimited list of required toolchain engines verified after Stage 2
+# Fallback space-delimited list of plugin engines verified after Stage 2
 CLAUSE_REQUIRED_ENGINES     = "comfyui lemonade code fastflowlm unsloth"
 
 [env.posix]
