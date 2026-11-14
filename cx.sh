@@ -228,6 +228,13 @@ case ":${PATH}:" in
     *) export PATH="${CLAUSE_BIN_DIR}:${PATH}" ;;
 esac
 
+if [ -n "${HOMEBREW_PREFIX:-}" ]; then
+    case ":${PATH}:" in
+        *:"${HOMEBREW_PREFIX}/bin":*) ;;
+        *) export PATH="${HOMEBREW_PREFIX}/bin:${PATH}" ;;
+    esac
+fi
+
 OS="$(uname -s)"
 ARCH="$(uname -m)"
 
@@ -367,6 +374,15 @@ fi
 # ==============================================================================
 write_clause_log "Finalizing ClauseOS toolchain installation..." "INFO"
 "$MISE_BIN" install --yes
+
+# Bootstrap POSIX system packages (Lima via Mise brew manager)
+if [ ! -x "${HOMEBREW_PREFIX}/bin/limactl" ] && ! command -v limactl >/dev/null 2>&1; then
+    write_clause_log "Lima not detected; bootstrapping via Mise brew package manager..." "INFO"
+    "$MISE_BIN" bootstrap packages apply --manager brew || {
+        write_clause_log "Mise brew package bootstrap failed" "FATAL"
+        exit 1
+    }
+fi
 
 MISE_SHIMS="${MISE_SHIMS_DIR}"
 if [ -n "$MISE_SHIMS" ] && [ -d "$MISE_SHIMS" ]; then
