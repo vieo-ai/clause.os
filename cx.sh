@@ -15,6 +15,8 @@ else
     PROJECT_ROOT="$CLAUSE_PROJECT_ROOT"
 fi
 
+_CALLER_MISE_ENV="${MISE_ENV:-}"
+
 ENV_CONFIG_DIR="${PROJECT_ROOT}/config/env"
 if [ ! -d "$ENV_CONFIG_DIR" ]; then
     echo "[ClauseOS] Critical: Modular environment directory missing at $ENV_CONFIG_DIR" >&2
@@ -181,6 +183,11 @@ while [ "$_pass" -lt 8 ]; do
     _pass=$((_pass + 1))
 done
 
+# Preserve explicit caller MISE_ENV override if supplied
+if [ -n "$_CALLER_MISE_ENV" ]; then
+    export MISE_ENV="$_CALLER_MISE_ENV"
+fi
+
 for _pkey in $_CLAUSE_PROV_KEYS; do
     eval "_pval=\$_CLAUSE_PROV_${_pkey}"
     _pdir="$(expand_clause_string "$_pval")"
@@ -194,7 +201,7 @@ done
 for _tmpvar in $(set | sed -n 's/^\(_CLAUSE_ANCHOR_[a-zA-Z0-9_]*\|_CLAUSE_PROV_[a-zA-Z0-9_]*\)=.*/\1/p'); do
     unset "$_tmpvar"
 done
-unset _found_toml _mod _section _line _key _val _avar _aval _pass _changed _ekey _cur _exp _pkey _pval _pdir _tmpvar _CLAUSE_ENV_KEYS _CLAUSE_PROV_KEYS
+unset _found_toml _mod _section _line _key _val _avar _aval _pass _changed _ekey _cur _exp _pkey _pval _pdir _tmpvar _CLAUSE_ENV_KEYS _CLAUSE_PROV_KEYS _CALLER_MISE_ENV
 
 # Ensure core directories and hermetic .ssh exist on disk
 SSH_DIR="${CLAUSE_SSH_DIR}"
@@ -270,7 +277,7 @@ write_clause_log() {
 }
 
 write_clause_log "Initializing ClauseOS Microkernel Bootloader..." "INFO"
-write_clause_log "Context: Root=$PROJECT_ROOT | Home=$CLAUSE_HOME | OS(Windows=False, Linux=$([ "$IS_LINUX" -eq 1 ] && echo True || echo False), Mac=$([ "$IS_MAC" -eq 1 ] && echo True || echo False))" "DEBUG"
+write_clause_log "Context: Root=$PROJECT_ROOT | Home=$CLAUSE_HOME | Profile=${MISE_ENV} | OS(Windows=False, Linux=$([ "$IS_LINUX" -eq 1 ] && echo True || echo False), Mac=$([ "$IS_MAC" -eq 1 ] && echo True || echo False))" "DEBUG"
 
 # ==============================================================================
 # TARGET DIRECTORY PROVISIONING
@@ -372,16 +379,19 @@ fi
 # ==============================================================================
 # STAGE 2: TOOLCHAIN INSTALLATION & HEALTH VERIFICATION (MISE)
 # ==============================================================================
-write_clause_log "Finalizing ClauseOS toolchain installation..." "INFO"
+write_clause_log "Finalizing ClauseOS toolchain installation (MISE_ENV=${MISE_ENV})..." "INFO"
 "$MISE_BIN" install --yes
 
-# Bootstrap POSIX system packages (Lima via Mise brew manager)
-if [ ! -x "${HOMEBREW_PREFIX}/bin/limactl" ] && ! command -v limactl >/dev/null 2>&1; then
-    write_clause_log "Lima not detected; bootstrapping via Mise brew package manager..." "INFO"
-    "$MISE_BIN" bootstrap packages apply --manager brew || {
-        write_clause_log "Mise brew package bootstrap failed" "FATAL"
-        exit 1
-    }
+# Bootstrap POSIX system packages (Lima via Mise brew manager) only when declared in active MISE_ENV
+BREW_STATUS="$("$MISE_BIN" bootstrap packages status --manager brew 2>/dev/null || true)"
+if [ -n "$BREW_STATUS" ]; then
+    if [ ! -x "${HOMEBREW_PREFIX}/bin/limactl" ] && ! command -v limactl >/dev/null 2>&1; then
+        write_clause_log "Lima not detected; bootstrapping via Mise brew package manager..." "INFO"
+        "$MISE_BIN" bootstrap packages apply --manager brew || {
+            write_clause_log "Mise brew package bootstrap failed" "FATAL"
+            exit 1
+        }
+    fi
 fi
 
 MISE_SHIMS="${MISE_SHIMS_DIR}"
@@ -392,8 +402,53 @@ if [ -n "$MISE_SHIMS" ] && [ -d "$MISE_SHIMS" ]; then
     esac
 fi
 
-# --- Direct Filesystem Probe for Engine Directories (POSIX Compliant) ---
-REQUIRED_TOOLS="${CLAUSE_REQUIRED_ENGINES}"
+# --- Direct Filesystem Probe for Plugin Engine Directories (POSIX Compliant) ---
+_ACTIVE_MANIFESTS="${PROJECT_ROOT}/.mise.toml"
+if [ -n "${MISE_ENV:-}" ]; then
+    _OLD_IFS="$IFS"
+    IFS=','
+    for _env_name in $MISE_ENV; do
+        _env_name="${_env_name#"${_env_name%%[![:space:]]*}"}"
+        _env_name="${_env_name%"${_env_name##*[![:space:]]}"}"
+        if [ -n "$_env_name" ]; then
+            _ACTIVE_MANIFESTS="${_ACTIVE_MANIFESTS} ${PROJECT_ROOT}/.mise.${_env_name}.toml ${PROJECT_ROOT}/.mise.${_env_name}.local.toml"
+        fi
+    done
+    IFS="$_OLD_IFS"
+fi
+_ACTIVE_MANIFESTS="${_ACTIVE_MANIFESTS} ${PROJECT_ROOT}/.mise.local.toml"
+
+REQUIRED_TOOLS=""
+_HAS_ANY_MANIFEST=0
+for _mfile in $_ACTIVE_MANIFESTS; do
+    [ -f "$_mfile" ] || continue
+    _HAS_ANY_MANIFEST=1
+    _parsed_plugins="$(awk '
+        /^[[:space:]]*#/ || /^[[:space:]]*$/ { next }
+        /^[[:space:]]*\[.*\][[:space:]]*$/ {
+            in_plugins = ($0 ~ /^[[:space:]]*\[plugins\][[:space:]]*$/)
+            next
+        }
+        in_plugins && index($0, "=") > 0 {
+            key = substr($0, 1, index($0, "=") - 1)
+            gsub(/^[[:space:]"\x27]+|[[:space:]"\x27]+$/, "", key)
+            if (key != "") print key
+        }
+    ' "$_mfile")"
+    for _p in $_parsed_plugins; do
+        case " ${REQUIRED_TOOLS} " in
+            *" ${_p} "*) ;;
+            *) REQUIRED_TOOLS="${REQUIRED_TOOLS:+${REQUIRED_TOOLS} }${_p}" ;;
+        esac
+    done
+done
+unset _ACTIVE_MANIFESTS _OLD_IFS _env_name _mfile _parsed_plugins _p
+
+if [ "$_HAS_ANY_MANIFEST" -eq 0 ]; then
+    REQUIRED_TOOLS="${CLAUSE_REQUIRED_ENGINES}"
+fi
+unset _HAS_ANY_MANIFEST
+
 MISSING_TOOLS=""
 MISE_INSTALLS_BASE="${MISE_INSTALLS_DIR}"
 
