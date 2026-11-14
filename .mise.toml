@@ -30,6 +30,33 @@ unsloth = "https://github.com/vieo-ai/mise-unsloth.git"
 comfyui = "https://github.com/vieo-ai/mise-comfyui.git"
 
 [bootstrap.packages]
+# Linux Host C/C++ Build Dependencies (BEAM Compilation Prereqs)
+"apt:build-essential" = "latest"
+"apt:gcc"             = "latest"
+"apt:g++"             = "latest"
+"apt:make"            = "latest"
+"apt:autoconf"        = "latest"
+"apt:m4"              = "latest"
+"apt:libncurses-dev"  = "latest"
+"apt:libssl-dev"      = "latest"
+
+"dnf:gcc"             = "latest"
+"dnf:gcc-c++"         = "latest"
+"dnf:make"            = "latest"
+"dnf:autoconf"        = "latest"
+"dnf:m4"              = "latest"
+"dnf:ncurses-devel"   = "latest"
+"dnf:openssl-devel"   = "latest"
+
+"pacman:base-devel"   = "latest"
+"pacman:gcc"          = "latest"
+"pacman:make"         = "latest"
+"pacman:autoconf"     = "latest"
+"pacman:m4"           = "latest"
+"pacman:ncurses"      = "latest"
+"pacman:openssl"      = "latest"
+
+# Subsystem Package Drivers
 "brew:lima" = "latest"
 
 [tools]
