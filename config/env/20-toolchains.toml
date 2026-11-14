@@ -15,7 +15,7 @@ MISE_INSTALLS_DIR           = "${MISE_DATA_DIR}/installs"
 
 MISE_YES                    = "1"
 MISE_NOT_FOUND_AUTO_INSTALL = "0"
-MISE_EXPERIMENTAL           = "1"
+MISE_EXPERIMENTAL           = "0"
 
 # Space-delimited list of required toolchain engines verified after Stage 2
 CLAUSE_REQUIRED_ENGINES     = "comfyui lemonade code fastflowlm unsloth"
