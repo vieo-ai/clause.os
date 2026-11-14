@@ -5,6 +5,9 @@
 [env]
 _.path = ["{{ env.CLAUSE_BIN_DIR }}"]
 
+[bootstrap.packages]
+"brew:lima" = "latest"
+
 [settings]
 auto_install = false
 experimental = false
