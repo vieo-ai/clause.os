@@ -382,24 +382,13 @@ fi
 write_clause_log "Finalizing ClauseOS toolchain installation (MISE_ENV=${MISE_ENV})..." "INFO"
 "$MISE_BIN" install --yes
 
-# Bootstrap POSIX system packages (Lima via Mise brew manager) only when declared in active MISE_ENV
-BREW_STATUS="$("$MISE_BIN" bootstrap packages status --manager brew 2>/dev/null || true)"
-if [ -n "$BREW_STATUS" ]; then
-    if [ ! -x "${HOMEBREW_PREFIX}/bin/limactl" ] && ! command -v limactl >/dev/null 2>&1; then
-        write_clause_log "Lima not detected; bootstrapping via Mise brew package manager..." "INFO"
-        "$MISE_BIN" bootstrap packages apply --manager brew || {
-            write_clause_log "Mise brew package bootstrap failed" "FATAL"
-            exit 1
-        }
-    fi
-fi
-
-MISE_SHIMS="${MISE_SHIMS_DIR}"
-if [ -n "$MISE_SHIMS" ] && [ -d "$MISE_SHIMS" ]; then
-    case ":${PATH}:" in
-        *:"${MISE_SHIMS}":*) ;;
-        *) export PATH="${MISE_SHIMS}:${PATH}" ;;
-    esac
+# Bootstrap POSIX system packages (Lima via Mise brew manager)
+if [ ! -x "${HOMEBREW_PREFIX}/bin/limactl" ] && ! command -v limactl >/dev/null 2>&1; then
+    write_clause_log "Lima not detected; bootstrapping via Mise brew package manager..." "INFO"
+    "$MISE_BIN" bootstrap packages apply --manager brew || {
+        write_clause_log "Mise brew package bootstrap failed" "FATAL"
+        exit 1
+    }
 fi
 
 # --- Direct Filesystem Probe for Plugin Engine Directories (POSIX Compliant) ---
