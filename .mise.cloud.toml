@@ -1,0 +1,17 @@
+# ==============================================================================
+# CARRIER OS - CLOUD CONTROL PLANE & INFRASTRUCTURE OVERLAY (MISE_ENV=cloud)
+# ==============================================================================
+
+[bootstrap.packages]
+"brew:lima" = "latest"
+
+[tools]
+# --- INFRASTRUCTURE AS CODE & PLATFORM ENGINEERING ---
+pulumi = "3.272.0"
+packer = "1.16.2"
+
+# --- CLOUD CONTROL PLANE & WORKLOAD RUNTIME (HASHICORP STACK) ---
+nomad = "2.0.7"
+consul = "2.1.0"
+vault = "2.2.1"
+boundary = "0.21.3"
