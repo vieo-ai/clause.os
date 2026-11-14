@@ -29,6 +29,9 @@ code = "https://github.com/vieo-ai/mise-vscode.git"
 unsloth = "https://github.com/vieo-ai/mise-unsloth.git"
 comfyui = "https://github.com/vieo-ai/mise-comfyui.git"
 
+[bootstrap.packages]
+"brew:lima" = "latest"
+
 [tools]
 # --- 1. CORE LANGUAGE RUNTIMES & COMPILERS (BEAM ECOSYSTEM) ---
 # The core execution layer and language compilers for building your application logic.
@@ -64,9 +67,6 @@ comfyui = "v0.43.0"
 # --- 6. DEVELOPMENT ENVIRONMENT & UTILITIES ---
 # Local developer utilities, editors, or helper tools that don't deploy to production.
 code = "1.144.1"
-
-[bootstrap.packages]
-"brew:lima" = "latest"
 
 [settings]
 auto_install = false
