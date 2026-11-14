@@ -1,0 +1,57 @@
+# ==============================================================================
+# CARRIER OS - BEAM & LOCAL AI WORKSTATION OVERLAY (MISE_ENV=ai)
+# ==============================================================================
+
+[plugins]
+lemonade = "https://github.com/vieo-ai/mise-lemonade.git"
+fastflowlm = "https://github.com/vieo-ai/mise-fastflowlm.git"
+code = "https://github.com/vieo-ai/mise-vscode.git"
+unsloth = "https://github.com/vieo-ai/mise-unsloth.git"
+comfyui = "https://github.com/vieo-ai/mise-comfyui.git"
+
+[bootstrap.packages]
+# Linux Host C/C++ Build Dependencies (BEAM Compilation Prereqs)
+"apt:build-essential" = "latest"
+"apt:gcc"            = "latest"
+"apt:g++"            = "latest"
+"apt:make"           = "latest"
+"apt:autoconf"       = "latest"
+"apt:m4"             = "latest"
+"apt:libncurses-dev" = "latest"
+"apt:libssl-dev"     = "latest"
+
+"dnf:gcc"            = "latest"
+"dnf:gcc-c++"        = "latest"
+"dnf:make"           = "latest"
+"dnf:autoconf"       = "latest"
+"dnf:m4"             = "latest"
+"dnf:ncurses-devel"  = "latest"
+"dnf:openssl-devel"  = "latest"
+
+"pacman:base-devel"  = "latest"
+"pacman:gcc"         = "latest"
+"pacman:make"        = "latest"
+"pacman:autoconf"    = "latest"
+"pacman:m4"          = "latest"
+"pacman:ncurses"     = "latest"
+"pacman:openssl"     = "latest"
+
+[tools]
+# --- CORE LANGUAGE RUNTIMES & COMPILERS (BEAM ECOSYSTEM) ---
+erlang = "29.1.2"
+elixir = "1.20.4-otp-29"
+gleam = "1.19.2"
+rebar = "3.27.3"
+
+# --- PACKAGE & RUNTIME MANAGEMENT ---
+uv = "0.13.6"
+
+# --- AI, ML, & DATA PIPELINES ---
+apm = "v0.33.0"
+lemonade = "2026.44.1"
+fastflowlm = "1.0.9"
+unsloth = "2026.10.9"
+comfyui = "v0.43.0"
+
+# --- DEVELOPMENT ENVIRONMENT & UTILITIES ---
+code = "1.144.1"
